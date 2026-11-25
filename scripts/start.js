@@ -19,9 +19,9 @@ function tandemDataDir() {
     const appData = process.env.APPDATA && process.env.APPDATA.trim()
       ? process.env.APPDATA
       : path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(appData, 'Tandem Browser');
+    return path.join(appData, 'Ulejra');
   }
-  return path.join(os.homedir(), '.tandem');
+  return path.join(os.homedir(), '.ulejra');
 }
 
 function parseApiPort(value) {
@@ -250,13 +250,13 @@ function clearServiceWorkerScriptCache() {
       os.homedir(),
       'Library',
       'Application Support',
-      'tandem-browser',
+      'Ulejra',
       'Partitions',
       'tandem',
       'Service Worker',
       'ScriptCache'
     );
-    const extDir = path.join(os.homedir(), '.tandem', 'extensions');
+    const extDir = path.join(tandemDataDir(), 'extensions');
     if (!fs.existsSync(swCacheDir) || !fs.existsSync(extDir)) return;
 
     const cacheFiles = fs.readdirSync(swCacheDir).filter((file) => file !== 'index-dir');

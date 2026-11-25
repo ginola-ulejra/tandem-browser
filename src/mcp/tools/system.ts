@@ -14,7 +14,7 @@ export function registerSystemTools(server: McpServer): void {
 
   server.tool(
     'tandem_injection_override',
-    'Temporarily override content script injection security for a domain. Use when a site blocks Tandem scripts.',
+    'Temporarily override content script injection security for a domain. Use when a site blocks Ulejra scripts.',
     {
       domain: z.string().describe('Domain to allow injection override for (e.g. "example.com")'),
     },

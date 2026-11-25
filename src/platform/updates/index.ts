@@ -26,13 +26,16 @@ function getErrorMessage(error: unknown): string {
 
 export function createWindowsUpdaterAdapter(): UpdaterAdapter {
   return {
-    isSupported: () => true,
+    // Ulejra has no update feed yet. Upstream checked hydro13's GitHub
+    // Releases, which would offer unbranded, unsigned Tandem builds to Ulejra
+    // users. Turn this back on once Ulejra publishes its own signed feed.
+    isSupported: () => false,
     checkForUpdates: async ({ mainWindow } = {}) => {
       if (updateCheckRunning) {
         await showMessageBox(mainWindow, {
           type: 'info',
           title: 'Update Check',
-          message: 'Tandem Browser is already checking for updates.',
+          message: 'Ulejra is already checking for updates.',
           buttons: ['OK'],
         });
         return;
@@ -62,7 +65,7 @@ export function createWindowsUpdaterAdapter(): UpdaterAdapter {
           await showMessageBox(mainWindow, {
             type: 'info',
             title: 'No Updates Available',
-            message: 'Tandem Browser is up to date.',
+            message: 'Ulejra is up to date.',
             detail: `Checked ${GITHUB_UPDATE_SOURCE}.`,
             buttons: ['OK'],
           });
@@ -73,7 +76,7 @@ export function createWindowsUpdaterAdapter(): UpdaterAdapter {
         const downloadChoice = await showMessageBox(mainWindow, {
           type: 'info',
           title: 'Update Available',
-          message: `Tandem Browser ${version} is available.`,
+          message: `Ulejra ${version} is available.`,
           detail: `The update was found on ${GITHUB_UPDATE_SOURCE}. Download it now?`,
           buttons: ['Download Update', 'Later'],
           defaultId: 0,
@@ -88,8 +91,8 @@ export function createWindowsUpdaterAdapter(): UpdaterAdapter {
         const installChoice = await showMessageBox(mainWindow, {
           type: 'info',
           title: 'Update Downloaded',
-          message: `Tandem Browser ${version} is ready to install.`,
-          detail: 'Install and restart Tandem Browser now, or finish your work and restart later.',
+          message: `Ulejra ${version} is ready to install.`,
+          detail: 'Install and restart Ulejra now, or finish your work and restart later.',
           buttons: ['Install and Restart', 'Later'],
           defaultId: 0,
           cancelId: 1,
@@ -101,7 +104,7 @@ export function createWindowsUpdaterAdapter(): UpdaterAdapter {
         await showMessageBox(mainWindow, {
           type: 'error',
           title: 'Update Check Failed',
-          message: 'Tandem Browser could not check for updates.',
+          message: 'Ulejra could not check for updates.',
           detail: getErrorMessage(error),
           buttons: ['OK'],
         });

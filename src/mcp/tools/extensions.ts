@@ -8,7 +8,7 @@ export function registerExtensionTools(server: McpServer): void {
 
   server.tool(
     'tandem_extensions_chrome_list',
-    'List Chrome extensions available for import into Tandem.',
+    'List Chrome extensions available for import into Ulejra.',
     {
       profile: z.string().optional().describe('Chrome profile name (default: "Default")'),
     },
@@ -24,7 +24,7 @@ export function registerExtensionTools(server: McpServer): void {
 
   server.tool(
     'tandem_extensions_chrome_import',
-    'Import Chrome extension(s) into Tandem. Provide an extensionId for a single extension or set all=true to import all.',
+    'Import Chrome extension(s) into Ulejra. Provide an extensionId for a single extension or set all=true to import all.',
     coerceShape({
       extensionId: z.string().optional().describe('Chrome extension ID to import'),
       all: z.boolean().optional().describe('Import all Chrome extensions'),

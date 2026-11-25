@@ -8,7 +8,7 @@
 class TandemLocalBackend {
   constructor() {
     this.id = 'tandem';
-    this.name = 'Tandem Local';
+    this.name = 'Ulejra Local';
     this.icon = 'T';
 
     this._connected = false;
@@ -180,7 +180,7 @@ class TandemLocalBackend {
       this.name = this._primaryAgent.label;
     } else {
       this._primaryAgent = null;
-      this.name = 'Tandem Local';
+      this.name = 'Ulejra Local';
     }
   }
 

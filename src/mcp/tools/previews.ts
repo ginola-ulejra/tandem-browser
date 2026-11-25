@@ -5,7 +5,7 @@ import { apiCall, logActivity } from '../api-client.js';
 export function registerPreviewTools(server: McpServer): void {
   server.tool(
     'tandem_preview_create',
-    'Create a live HTML preview page in Tandem Browser. Returns the preview URL. The page supports live reload — use tandem_preview_update to push changes.',
+    'Create a live HTML preview page in Ulejra. Returns the preview URL. The page supports live reload — use tandem_preview_update to push changes.',
     {
       html: z.string().describe('The HTML content for the preview page'),
       title: z.string().optional().describe('Optional title for the preview'),

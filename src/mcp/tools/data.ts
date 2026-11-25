@@ -27,7 +27,7 @@ export function registerDataTools(server: McpServer): void {
 
   server.tool(
     'tandem_chrome_import_bookmarks',
-    'Import bookmarks from Chrome into Tandem.',
+    'Import bookmarks from Chrome into Ulejra.',
     async () => {
       const data = await apiCall('POST', '/import/chrome/bookmarks');
       await logActivity('chrome_import_bookmarks');
@@ -37,7 +37,7 @@ export function registerDataTools(server: McpServer): void {
 
   server.tool(
     'tandem_chrome_import_history',
-    'Import browsing history from Chrome into Tandem.',
+    'Import browsing history from Chrome into Ulejra.',
     async () => {
       const data = await apiCall('POST', '/import/chrome/history');
       await logActivity('chrome_import_history');
@@ -47,7 +47,7 @@ export function registerDataTools(server: McpServer): void {
 
   server.tool(
     'tandem_chrome_import_cookies',
-    'Import cookies from Chrome into Tandem.',
+    'Import cookies from Chrome into Ulejra.',
     async () => {
       const data = await apiCall('POST', '/import/chrome/cookies');
       await logActivity('chrome_import_cookies');
@@ -156,7 +156,7 @@ export function registerDataTools(server: McpServer): void {
 
   server.tool(
     'tandem_config_get',
-    'Get the current Tandem browser configuration.',
+    'Get the current Ulejra browser configuration.',
     async () => {
       const data = await apiCall('GET', '/config');
       await logActivity('config_get');
@@ -166,7 +166,7 @@ export function registerDataTools(server: McpServer): void {
 
   server.tool(
     'tandem_config_update',
-    'Update Tandem browser configuration settings. Pass an object with the settings to change.',
+    'Update Ulejra browser configuration settings. Pass an object with the settings to change.',
     {
       settings: z.object({}).passthrough().describe('Configuration settings to update'),
     },

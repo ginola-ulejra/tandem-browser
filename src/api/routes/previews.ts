@@ -308,7 +308,7 @@ export function registerPreviewRoutes(router: Router, ctx: RouteContext): void {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Tandem Previews</title>
+  <title>Ulejra Previews</title>
   <style>
     body { font-family: system-ui, sans-serif; padding: 2rem; background: #0f0f0f; color: #eee; }
     h1 { margin-bottom: 1.5rem; }
@@ -320,7 +320,7 @@ export function registerPreviewRoutes(router: Router, ctx: RouteContext): void {
   </style>
 </head>
 <body>
-  <h1>Tandem Previews</h1>
+  <h1>Ulejra Previews</h1>
   ${previews.length === 0 ? '<p>No previews yet.</p>' : `
   <table>
     <thead><tr><th>Title</th><th>ID</th><th>Last updated</th><th>Version</th><th>Inspiration</th></tr></thead>

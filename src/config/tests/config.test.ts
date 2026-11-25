@@ -61,7 +61,7 @@ describe('ConfigManager', () => {
       expect(config.screenshots.clipboard).toBe(true);
       expect(config.screenshots.localFolder).toBe(true);
       expect(config.screenshots.localFolderPath).toBe(
-        path.join(os.homedir(), 'Pictures', 'Tandem')
+        path.join(os.homedir(), 'Pictures', 'Ulejra')
       );
       expect(config.screenshots.applePhotos).toBe(false);
       expect(config.screenshots.googlePhotos).toBe(false);

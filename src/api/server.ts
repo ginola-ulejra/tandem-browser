@@ -475,7 +475,7 @@ export class TandemAPI {
     const nextRequiredRead = startup.nextRequiredEndpoint
       ? `${baseUrl}${startup.nextRequiredEndpoint}`
       : `${baseUrl}/skill`;
-    const reason = 'Agent startup is required before using Tandem APIs.';
+    const reason = 'Agent startup is required before using Ulejra APIs.';
     return {
       allowed: false,
       caller,
@@ -485,7 +485,7 @@ export class TandemAPI {
       body: {
         error: reason,
         code: 'agent_startup_required',
-        message: 'Read the required Tandem startup resources with this Bearer token, then retry the request.',
+        message: 'Read the required Ulejra startup resources with this Bearer token, then retry the request.',
         nextRequiredRead,
         missingReads: startup.missingEndpoints.map(endpoint => `${baseUrl}${endpoint}`),
         requiredStartupSequence: withBaseUrl(baseUrl, AGENT_STARTUP_SEQUENCE),
@@ -641,7 +641,7 @@ export class TandemAPI {
       });
       this.server.on('error', (error: NodeJS.ErrnoException) => {
         if (error.code === 'EADDRINUSE') {
-          reject(new Error(`Tandem Agent API port ${this.port} is already in use. Stop the other process or choose a different Agent API port in Settings.`));
+          reject(new Error(`Ulejra Agent API port ${this.port} is already in use. Stop the other process or choose a different Agent API port in Settings.`));
           return;
         }
         reject(error);

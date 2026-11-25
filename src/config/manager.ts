@@ -73,7 +73,7 @@ export interface TandemConfig {
   // Configure via POST /sync/config API. Settings UI is future work.
   deviceSync: {
     enabled: boolean;
-    syncRoot: string;      // e.g. "/Users/robin/Google Drive/My Drive/Tandem"
+    syncRoot: string;      // e.g. "/Users/robin/Google Drive/My Drive/Ulejra"
     deviceName: string;    // e.g. "macbook-air" (default: os.hostname())
   };
 
@@ -144,7 +144,7 @@ const DEFAULT_CONFIG: TandemConfig = {
   screenshots: {
     clipboard: true,
     localFolder: true,
-    localFolderPath: path.join(os.homedir(), 'Pictures', 'Tandem'),
+    localFolderPath: path.join(os.homedir(), 'Pictures', 'Ulejra'),
     applePhotos: false,
     googlePhotos: false,
   },

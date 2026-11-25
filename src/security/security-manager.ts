@@ -568,7 +568,7 @@ export class SecurityManager {
       trigger: 'behavior-critical',
       reason: 'Crypto-miner style runtime behavior detected',
       actionSummary: 'JavaScript execution was terminated for the tab, future network requests are quarantined, and the site was forced into strict mode.',
-      reviewMessage: 'Tandem detected sustained CPU usage with WebAssembly activity and stopped page execution. Review the tab before interacting with it again.',
+      reviewMessage: 'Ulejra detected sustained CPU usage with WebAssembly activity and stopped page execution. Review the tab before interacting with it again.',
       detection: {
         reason: detection.reason,
         cpuUsage: Math.round(detection.metrics.cpuUsage * 100),

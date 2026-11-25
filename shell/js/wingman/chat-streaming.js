@@ -49,7 +49,7 @@ export function createStreamingRenderer({ messagesEl }) {
     if (sourceClass === 'claude') return 'Claude';
     if (sourceClass === 'codex') return 'Codex';
     if (sourceClass === 'openclaw') return 'OpenClaw';
-    if (sourceClass === 'tandem') return 'Tandem';
+    if (sourceClass === 'tandem') return 'Ulejra';
     return 'Wingman';
   }
 

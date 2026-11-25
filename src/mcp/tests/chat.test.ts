@@ -115,7 +115,7 @@ describe('MCP chat tools', () => {
     it('returns local chat bus status', async () => {
       mockApiCall.mockResolvedValueOnce({ available: true, backend: 'tandem', lastMessageId: 7 });
       const result = await handler({});
-      const text = expectTextContent(result, 'Tandem chat status: available');
+      const text = expectTextContent(result, 'Ulejra chat status: available');
       expect(text).toContain('lastMessageId: 7');
       expect(mockApiCall).toHaveBeenCalledWith('GET', '/chat/status');
     });

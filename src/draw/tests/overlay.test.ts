@@ -99,7 +99,7 @@ describe('DrawOverlayManager screenshot modes', () => {
     expect(win.webContents.send).toHaveBeenCalledWith(
       'screenshot-taken',
       expect.objectContaining({
-        path: expect.stringContaining(path.join('Pictures', 'Tandem')),
+        path: expect.stringContaining(path.join('Pictures', 'Ulejra')),
         appPath: expect.stringContaining(path.join('/tmp/tandem-user-data', 'screenshots')),
         base64: pngBuffer.toString('base64'),
       }),

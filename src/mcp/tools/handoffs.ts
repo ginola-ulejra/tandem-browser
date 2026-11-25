@@ -15,7 +15,7 @@ const handoffStatusSchema = z.enum([
 export function registerHandoffTools(server: McpServer): void {
   server.tool(
     'tandem_handoff_create',
-    'Create an explicit human↔agent handoff that appears in Tandem for the user to review, approve, or resume.',
+    'Create an explicit human↔agent handoff that appears in Ulejra for the user to review, approve, or resume.',
     coerceShape({
       status: handoffStatusSchema.describe('Handoff state: needs_human, blocked, waiting_approval, ready_to_resume, completed_review, or resolved'),
       title: z.string().describe('Short handoff title shown to the human'),

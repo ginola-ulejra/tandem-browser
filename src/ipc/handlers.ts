@@ -355,7 +355,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       }
       // Get window source for video
       const windowSources = await desktopCapturer.getSources({ types: ['window'], fetchWindowIcons: false });
-      const tandemSource = windowSources.find((s: Electron.DesktopCapturerSource) => s.name.includes('Tandem')) || windowSources[0];
+      const tandemSource = windowSources.find((s: Electron.DesktopCapturerSource) => s.name.includes('Ulejra')) || windowSources[0];
 
       // Get screen source for audio (window sources don't include audio on macOS)
       // This is optional - don't let it block recording if it fails
@@ -689,10 +689,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     
     const template: Electron.MenuItemConstructorOptions[] = [
       {
-        label: 'Tandem',
+        label: 'Ulejra',
         submenu: [
           {
-            label: 'About Tandem Browser',
+            label: 'About Ulejra',
             click: () => send('show-about'),
           },
           { type: 'separator' },

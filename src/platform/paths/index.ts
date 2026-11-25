@@ -4,7 +4,7 @@ import path from 'path';
 import { NotImplementedError, type PlatformId } from '../errors';
 import type { PathsAdapter } from '../types';
 
-const PRODUCT_DATA_DIR = 'Tandem Browser';
+const PRODUCT_DATA_DIR = 'Ulejra';
 
 function createNodePathsAdapter(resolveRoot: () => string): PathsAdapter {
   return {
@@ -19,7 +19,7 @@ function createNodePathsAdapter(resolveRoot: () => string): PathsAdapter {
 }
 
 function legacyTandemRoot(): string {
-  return path.join(os.homedir(), '.tandem');
+  return path.join(os.homedir(), '.ulejra');
 }
 
 function windowsTandemRoot(): string {

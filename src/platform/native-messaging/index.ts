@@ -74,7 +74,7 @@ function mirrorManifestsToTandemDir(targetDir: string, sourceDirs: string[]): vo
   try {
     fs.mkdirSync(targetDir, { recursive: true });
   } catch {
-    log.warn('Native messaging: failed to create Tandem NativeMessagingHosts directory');
+    log.warn('Native messaging: failed to create Ulejra NativeMessagingHosts directory');
     return;
   }
 
@@ -124,7 +124,7 @@ function createSetupWithDetectionAdapter(detectionAdapter: NativeMessagingDetect
 export function createDarwinNativeMessagingDetectionAdapter(): NativeMessagingDetectionAdapter {
   const chromeUserDir = path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts');
   const chromiumUserDir = path.join(os.homedir(), 'Library', 'Application Support', 'Chromium', 'NativeMessagingHosts');
-  const tandemDir = path.join(os.homedir(), 'Library', 'Application Support', 'Tandem Browser', 'NativeMessagingHosts');
+  const tandemDir = path.join(os.homedir(), 'Library', 'Application Support', 'Ulejra', 'NativeMessagingHosts');
 
   return createDetectionAdapter({
     dirs: [

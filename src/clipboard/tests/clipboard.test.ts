@@ -206,7 +206,7 @@ describe('ClipboardManager', () => {
 
       cm.saveAs({ filename: 'test.txt', format: 'txt' });
       expect(fs.mkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining(path.join('Pictures', 'Tandem', 'clipboard')),
+        expect.stringContaining(path.join('Pictures', 'Ulejra', 'clipboard')),
         { recursive: true }
       );
     });

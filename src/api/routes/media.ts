@@ -528,14 +528,14 @@ export function registerMediaRoutes(router: Router, ctx: RouteContext): void {
       res.type('html').send(renderGooglePhotosAuthPage({
         ok: true,
         title: 'Google Photos connected',
-        message: 'You can close this window and return to Tandem.',
+        message: 'You can close this window and return to Ulejra.',
       }));
     } catch (e) {
       const message = getErrorMessage(e, 'Google Photos authorization failed');
       res.status(400).type('html').send(renderGooglePhotosAuthPage({
         ok: false,
         title: 'Google Photos connection failed',
-        message: 'Google Photos authorization failed. Review Tandem logs for details.',
+        message: 'Google Photos authorization failed. Review Ulejra logs for details.',
         detail: message,
       }));
     }

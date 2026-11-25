@@ -63,12 +63,12 @@ const ONEPW_CHROME_ORIGIN = 'chrome-extension://aeblfdkhhhdcdjpifhhbdiojplfjncoa
 // When spawned from a process inside a properly-signed .app with bundle ID
 // com.tandem.browser (which we registered via "Add Browser" + Touch ID),
 // 1Password should return an authorized or trusted browser state.
-const NM_RELAY = '/Applications/Tandem Browser.app/Contents/MacOS/nm-relay';
+const NM_RELAY = '/Applications/Ulejra.app/Contents/MacOS/nm-relay';
 
 // Directories to search for native messaging manifests (macOS)
 const MANIFEST_DIRS = [
   path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'),
-  path.join(os.homedir(), 'Library', 'Application Support', 'Tandem Browser', 'NativeMessagingHosts'),
+  path.join(os.homedir(), 'Library', 'Application Support', 'Ulejra', 'NativeMessagingHosts'),
   '/Library/Google/Chrome/NativeMessagingHosts',
 ];
 

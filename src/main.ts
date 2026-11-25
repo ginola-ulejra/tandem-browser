@@ -834,7 +834,7 @@ async function createWindow(): Promise<BrowserWindow> {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    title: 'Tandem Browser',
+    title: 'Ulejra',
     ...platformWindowOptions,
     webPreferences: {
       preload: path.join(__dirname, 'preload', 'index.js'),
@@ -892,7 +892,7 @@ async function startAPI(win: BrowserWindow): Promise<void> {
   currentApiPort = runtime.configManager.getConfig().general.apiPort;
   api = new TandemAPI({ win, port: currentApiPort, registry });
   await api.start();
-  log.info(`Tandem API running on ${buildLocalApiBaseUrl(currentApiPort)}`);
+  log.info(`Ulejra API running on ${buildLocalApiBaseUrl(currentApiPort)}`);
 
   // Security: Monitor openclaw.json for unauthorized modifications (prompt injection defense)
   const { startConfigIntegrityMonitor } = await import('./openclaw/connect');
@@ -901,7 +901,7 @@ async function startAPI(win: BrowserWindow): Promise<void> {
     // Alert the user via notification
     const { Notification } = require('electron');
     new Notification({
-      title: '⚠️ Security Alert — Tandem Browser',
+      title: '⚠️ Security Alert — Ulejra',
       body: detail,
       urgency: 'critical',
     }).show();
@@ -926,7 +926,7 @@ async function startAPI(win: BrowserWindow): Promise<void> {
           level: 'unknown',
           routePath,
           scope: null,
-          reason: 'Denied native messaging WebSocket because the Tandem API is unavailable',
+          reason: 'Denied native messaging WebSocket because the Ulejra API is unavailable',
           extensionId: extensionId ?? 'unknown-extension',
           runtimeId: null,
           storageId: null,

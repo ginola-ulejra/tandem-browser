@@ -61,7 +61,7 @@ function applyConfigToUI() {
   setChecked('cfg-localFolder', s.localFolder !== false);
   setChecked('cfg-applePhotos', !!s.applePhotos);
   setChecked('cfg-googlePhotos', !!s.googlePhotos);
-  const folderPath = s.localFolderPath || '~/Pictures/Tandem/';
+  const folderPath = s.localFolderPath || '~/Pictures/Ulejra/';
   setVal('cfg-localFolderPath', folderPath);
   const displayEl = document.getElementById('cfg-localFolderPath-display');
   if (displayEl) displayEl.textContent = folderPath;
@@ -1212,7 +1212,7 @@ async function saveAgentApiPort() {
       return;
     }
     if (previousPort !== parsed.port) {
-      showToast('Saved. Restart Tandem to use the new port.');
+      showToast('Saved. Restart Ulejra to use the new port.');
     }
     await loadAddresses();
     updateAgentApiPreview();
@@ -1246,10 +1246,10 @@ function selectAgentMode(mode) {
   if (mode === 'local') {
     const addr = detectedAddresses ? detectedAddresses.local.address : `${API}`;
     info.innerHTML = `
-      <p class="field-desc">Your AI and Tandem are on the same machine.</p>
-      <p class="field-desc" style="margin-top:4px;">Tandem will generate a ready-to-paste instruction block for your AI.</p>
+      <p class="field-desc">Your AI and Ulejra are on the same machine.</p>
+      <p class="field-desc" style="margin-top:4px;">Ulejra will generate a ready-to-paste instruction block for your AI.</p>
       <div style="font-size:13px;color:var(--text-dim);margin-top:6px;">
-        Tandem address: <strong style="color:var(--text)">${esc(addr)}</strong>
+        Ulejra address: <strong style="color:var(--text)">${esc(addr)}</strong>
       </div>`;
     connectBtn.disabled = false;
     connectBtn.textContent = 'Generate connection instructions';
@@ -1264,18 +1264,18 @@ function selectAgentMode(mode) {
       const addr = detectedAddresses.tailscale.address;
       info.innerHTML = `
         <p class="field-desc">Your AI runs on another machine in your Tailscale network.</p>
-        <p class="field-desc" style="margin-top:4px;">Tandem will generate a ready-to-paste instruction block for your remote AI.</p>
+        <p class="field-desc" style="margin-top:4px;">Ulejra will generate a ready-to-paste instruction block for your remote AI.</p>
         <div style="font-size:13px;color:var(--text-dim);margin-top:6px;">
-          Tandem address: <strong style="color:var(--text)">${esc(addr)}</strong>
+          Ulejra address: <strong style="color:var(--text)">${esc(addr)}</strong>
         </div>
-        <p class="field-desc" style="margin-top:6px;font-size:11px;">Both machines must be on the same Tailscale network. Tandem is never exposed to the public internet.</p>`;
+        <p class="field-desc" style="margin-top:6px;font-size:11px;">Both machines must be on the same Tailscale network. Ulejra is never exposed to the public internet.</p>`;
       connectBtn.disabled = false;
       connectBtn.textContent = 'Generate connection instructions';
     } else {
       info.innerHTML = `
         <p class="field-desc" style="color:var(--warning)">No Tailscale connection detected.</p>
         <p class="field-desc" style="margin-top:4px;">Remote connections require Tailscale. Make sure Tailscale is running and this machine is connected to your tailnet.</p>
-        <p class="field-desc" style="margin-top:4px;font-size:11px;">Tandem only supports remote connections over private Tailscale networks, never over the public internet.</p>`;
+        <p class="field-desc" style="margin-top:4px;font-size:11px;">Ulejra only supports remote connections over private Tailscale networks, never over the public internet.</p>`;
       connectBtn.disabled = true;
       connectBtn.textContent = 'Tailscale not available';
     }
@@ -1289,12 +1289,12 @@ function buildInstructionText(code, mode) {
 
   if (mode === 'local') {
     return [
-      `Connect to Tandem Browser on this machine.`,
+      `Connect to Ulejra on this machine.`,
       ``,
-      `Tandem address: ${addr}`,
+      `Ulejra address: ${addr}`,
       `Setup code: ${code}`,
       ``,
-      `Read ${addr}/agent first. It explains how this Tandem instance works.`,
+      `Read ${addr}/agent first. It explains how this Ulejra instance works.`,
       ``,
       `Then exchange the setup code for a connection token:`,
       `POST ${addr}/pairing/exchange`,
@@ -1305,13 +1305,13 @@ function buildInstructionText(code, mode) {
     ].join('\n');
   } else {
     return [
-      `Connect to Tandem Browser on another machine via Tailscale.`,
+      `Connect to Ulejra on another machine via Tailscale.`,
       `Both machines must be on the same Tailscale network.`,
       ``,
-      `Tandem address: ${addr}`,
+      `Ulejra address: ${addr}`,
       `Setup code: ${code}`,
       ``,
-      `Read ${addr}/agent first. It explains how this Tandem instance works.`,
+      `Read ${addr}/agent first. It explains how this Ulejra instance works.`,
       ``,
       `Then exchange the setup code for a connection token:`,
       `POST ${addr}/pairing/exchange`,
@@ -1332,7 +1332,7 @@ function buildInstructionText(code, mode) {
       `  }`,
       `}`,
       ``,
-      `This connection works only over Tailscale. Tandem is not exposed to the public internet.`,
+      `This connection works only over Tailscale. Ulejra is not exposed to the public internet.`,
     ].join('\n');
   }
 }

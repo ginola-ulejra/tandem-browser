@@ -286,7 +286,7 @@ export class PinboardManager {
   private async fetchOGMeta(url: string): Promise<OGMeta> {
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Tandem/1.0)' },
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Ulejra/1.0)' },
         signal: AbortSignal.timeout(5000),
       });
       const html = await res.text();

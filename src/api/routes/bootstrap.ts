@@ -65,7 +65,7 @@ export function registerBootstrapRoutes(router: Router, ctx: RouteContext): void
     const version = getVersion();
     const baseUrl = getBaseUrl(req);
     const localTokenPath = tandemDir('api-token');
-    res.type('text/markdown').send(`# Tandem Browser — Agent Bootstrap
+    res.type('text/markdown').send(`# Ulejra — Agent Bootstrap
 
 **Version:** ${version}
 **Base URL:** \`${baseUrl}\`
@@ -73,17 +73,17 @@ export function registerBootstrapRoutes(router: Router, ctx: RouteContext): void
 
 ## Required agent startup sequence
 
-Do this before treating Tandem as a usable browser tool. The setup code only
-connects you; the next reads teach you what this running Tandem instance can do.
+Do this before treating Ulejra as a usable browser tool. The setup code only
+connects you; the next reads teach you what this running Ulejra instance can do.
 
 ${withBaseUrl(baseUrl, AGENT_STARTUP_SEQUENCE).map(step => `${step.order}. \`${step.auth === 'bearer' ? 'GET with Bearer token' : 'GET'} ${step.url}\` - ${step.purpose}`).join('\n')}
 
-After that, use Tandem with these operating rules:
+After that, use Ulejra with these operating rules:
 ${AGENT_OPERATING_RULES.map(rule => `- ${rule}`).join('\n')}
 
 ## How to connect
 
-### On the same machine as Tandem
+### On the same machine as Ulejra
 Read the local API token from \`${localTokenPath}\` and use it as:
 \`\`\`
 Authorization: Bearer <token>
@@ -93,23 +93,23 @@ Authorization: Bearer <token>
 Remote connections are supported only over a private Tailscale network.
 Both machines must be members of the same tailnet.
 
-1. The Tandem user generates a one-time setup code in Settings
+1. The Ulejra user generates a one-time setup code in Settings
 2. Exchange the code for a durable token:
    \`POST ${baseUrl}/pairing/exchange\`
    with body: \`{ "code": "TDM-XXXX-XXXX", "machineId": "...", "machineName": "...", "agentLabel": "...", "agentType": "..." }\`
 3. Use the returned token as: \`Authorization: Bearer <token>\`
 4. The token is permanent until the user revokes it
 
-Tandem is never exposed to the public internet.
+Ulejra is never exposed to the public internet.
 
-## Using Tandem after connecting
+## Using Ulejra after connecting
 
 Once you have a Bearer token (from local api-token or from pairing), use the HTTP API:
 \`\`\`
 Authorization: Bearer <your-token>
 \`\`\`
 
-All Tandem capabilities are available as HTTP endpoints. Key starting points:
+All Ulejra capabilities are available as HTTP endpoints. Key starting points:
 
 ### Browser status and navigation
 - \`GET ${baseUrl}/status\` — browser ready state, active tab, viewport
@@ -137,7 +137,7 @@ All Tandem capabilities are available as HTTP endpoints. Key starting points:
 Add \`X-Tab-Id: <tabId>\` header to target a specific tab instead of the active one.
 
 ## MCP access
-Tandem provides an MCP server with 250+ tools.
+Ulejra provides an MCP server with 250+ tools.
 
 ### Local agents (same machine) — stdio transport
 \`\`\`json
@@ -219,7 +219,7 @@ See \`GET ${baseUrl}/agent/manifest\` for the full list of 300+ endpoints.
       ...buildAgentBootstrapContract(baseUrl, version),
       runtime: getRuntimeContext(),
       recommendedSelfTest: {
-        purpose: 'Verify the connected agent can use Tandem as a browser before starting real work.',
+        purpose: 'Verify the connected agent can use Ulejra as a browser before starting real work.',
         steps: [
           'GET /workspaces and find or create the agent workspace.',
           'POST /tabs/open with workspaceId and a harmless URL.',
@@ -479,7 +479,7 @@ See \`GET ${baseUrl}/agent/manifest\` for the full list of 300+ endpoints.
           extensionNativeMessageWs: { method: 'WS', path: '/extensions/native-message/ws', description: 'Extension native messaging WebSocket (requires chrome-extension:// origin)' },
         },
         remoteNotes: {
-          _note: 'Some endpoints return local filesystem paths in response bodies (e.g. screenshot save path). These operations execute on the Tandem host and succeed remotely, but the returned path is only meaningful on the Tandem machine. Use GET /screenshot (without ?save) to receive screenshot data directly.',
+          _note: 'Some endpoints return local filesystem paths in response bodies (e.g. screenshot save path). These operations execute on the Ulejra host and succeed remotely, but the returned path is only meaningful on the Ulejra machine. Use GET /screenshot (without ?save) to receive screenshot data directly.',
         },
       },
     });
@@ -492,9 +492,9 @@ See \`GET ${baseUrl}/agent/manifest\` for the full list of 300+ endpoints.
   router.get('/skill', (req: Request, res: Response) => {
     const version = getVersion();
     const baseUrl = getBaseUrl(req);
-    res.type('text/markdown').send(`# Tandem Browser Skill — v${version}
+    res.type('text/markdown').send(`# Ulejra Skill — v${version}
 
-Tandem Browser is a live human-AI browser. Use its API at \`${baseUrl}\`
+Ulejra is a live human-AI browser. Use its API at \`${baseUrl}\`
 to inspect, browse, and interact with the user's real browser context.
 
 ## Key principles
@@ -514,7 +514,7 @@ ${withBaseUrl(baseUrl, AGENT_STARTUP_SEQUENCE).map(step => `${step.order}. \`${s
 ${AGENT_OPERATING_RULES.map(rule => `- ${rule}`).join('\n')}
 
 ## Quick start workflow
-1. \`GET ${baseUrl}/status\` — check Tandem is ready, see active tab
+1. \`GET ${baseUrl}/status\` — check Ulejra is ready, see active tab
 2. \`GET ${baseUrl}/snapshot\` — get accessibility tree with clickable refs
 3. \`POST ${baseUrl}/snapshot/click\` with \`{ "ref": "@e1" }\` — click an element
 4. \`POST ${baseUrl}/snapshot/fill\` with \`{ "ref": "@e2", "value": "text" }\` — type into an input

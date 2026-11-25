@@ -133,7 +133,7 @@ export class ConflictDetector {
         conflictType: 'dnr-overlap',
         severity: 'warning',
         description: 'Uses declarativeNetRequest rules that may overlap with NetworkShield',
-        recommendation: "Tandem's NetworkShield already blocks malicious domains. This extension is redundant for security but useful for ad blocking.",
+        recommendation: "Ulejra's NetworkShield already blocks malicious domains. This extension is redundant for security but useful for ad blocking.",
       });
     }
 
@@ -209,8 +209,8 @@ export class ConflictDetector {
                 extensionName,
                 conflictType: 'keyboard-shortcut',
                 severity: 'info',
-                description: `Shortcut "${rawKey}" (${cmdName}) conflicts with Tandem's "${tandemMatch.action}"`,
-                recommendation: "Tandem's shortcut takes priority (registered at BrowserWindow level). The extension shortcut will not fire.",
+                description: `Shortcut "${rawKey}" (${cmdName}) conflicts with Ulejra's "${tandemMatch.action}"`,
+                recommendation: "Ulejra's shortcut takes priority (registered at BrowserWindow level). The extension shortcut will not fire.",
               });
             }
           }

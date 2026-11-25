@@ -67,7 +67,7 @@ describe('selectPlatform', () => {
     expect(platform.id).toBe('darwin');
     expect(platform.process.isMacOS()).toBe(true);
     expect(platform.capabilities.capabilities.appStartup.status).toBe('supported');
-    expect(platform.paths.tandemDir('foo')).toBe(path.join(os.homedir(), '.tandem', 'foo'));
+    expect(platform.paths.tandemDir('foo')).toBe(path.join(os.homedir(), '.ulejra', 'foo'));
     expect(platform.windowChrome.getBrowserWindowOptions()).toMatchObject({
       titleBarStyle: 'hiddenInset',
     });
@@ -99,7 +99,7 @@ describe('selectPlatform', () => {
     expect(platform.id).toBe('linux');
     expect(platform.process.isLinux()).toBe(true);
     expect(platform.capabilities.capabilities.windowChrome.status).toBe('supported');
-    expect(platform.paths.tandemDir('foo')).toBe(path.join(os.homedir(), '.tandem', 'foo'));
+    expect(platform.paths.tandemDir('foo')).toBe(path.join(os.homedir(), '.ulejra', 'foo'));
     expect(() => platform.chromeImport.getUnavailableStatus()).not.toThrow();
     expect(platform.windowChrome.getBrowserWindowOptions()).toMatchObject({
       frame: false,
@@ -124,7 +124,7 @@ describe('selectPlatform', () => {
     expect(labelShortcutText('New tab (Cmd+T), Bookmark (⌘D), Screenshot (⌘⇧S)', 'win32')).toBe('New tab (Ctrl+T), Bookmark (Ctrl+D), Screenshot (Ctrl+Shift+S)');
   });
 
-  it('uses APPDATA/Tandem Browser for Windows user data paths', () => {
+  it('uses APPDATA/Ulejra for Windows user data paths', () => {
     const originalAppData = process.env.APPDATA;
     const appData = path.join(os.tmpdir(), 'tandem-appdata-test');
     process.env.APPDATA = appData;
@@ -132,7 +132,7 @@ describe('selectPlatform', () => {
     try {
       const platform = selectPlatform('win32');
 
-      expect(platform.paths.tandemDir('foo')).toBe(path.join(appData, 'Tandem Browser', 'foo'));
+      expect(platform.paths.tandemDir('foo')).toBe(path.join(appData, 'Ulejra', 'foo'));
     } finally {
       if (originalAppData === undefined) {
         delete process.env.APPDATA;

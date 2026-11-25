@@ -321,7 +321,7 @@ export class ExtensionManager {
     if (trustLevel === 'unknown') {
       return this.buildDeniedDecision(extensionId, routePath, policy.scope, trustLevel, permissions,
         resolved.runtimeId, resolved.storageId, resolved.extensionName,
-        `Denied ${policy.scope} for ${auditLabel} because Tandem could not resolve extension metadata`);
+        `Denied ${policy.scope} for ${auditLabel} because Ulejra could not resolve extension metadata`);
     }
 
     if (policy.minimumLevel === 'trusted' && trustLevel !== 'trusted') {

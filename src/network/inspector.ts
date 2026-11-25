@@ -90,7 +90,7 @@ export interface HarExport {
   log: {
     version: '1.2';
     creator: {
-      name: 'Tandem Browser';
+      name: 'Ulejra';
       version: string;
     };
     pages: Array<{
@@ -346,13 +346,13 @@ export class NetworkInspector {
         : 'active tab';
     const title = opts.domain
       ? `Network log for ${opts.domain} (${scopeLabel})`
-      : `Tandem network log (${scopeLabel})`;
+      : `Ulejra network log (${scopeLabel})`;
 
     return {
       log: {
         version: '1.2',
         creator: {
-          name: 'Tandem Browser',
+          name: 'Ulejra',
           version: process.env.npm_package_version || '0.0.0',
         },
         pages: [{

@@ -539,7 +539,7 @@ describe('Native messaging platform detection', () => {
       '/Library/Google/Chrome/NativeMessagingHosts',
       path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'),
       path.join(os.homedir(), 'Library', 'Application Support', 'Chromium', 'NativeMessagingHosts'),
-      path.join(os.homedir(), 'Library', 'Application Support', 'Tandem Browser', 'NativeMessagingHosts'),
+      path.join(os.homedir(), 'Library', 'Application Support', 'Ulejra', 'NativeMessagingHosts'),
       path.join(os.homedir(), 'Library', 'Application Support', 'tandem-browser', 'NativeMessagingHosts'),
       path.join(os.homedir(), 'Library', 'Application Support', 'Electron', 'NativeMessagingHosts'),
     ]);

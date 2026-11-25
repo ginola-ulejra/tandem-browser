@@ -23,7 +23,7 @@ export function registerChatTools(server: McpServer): void {
 
   server.tool(
     'tandem_chat_reply',
-    'Reply into the Wingman chat panel as the connected agent through Tandem local chat',
+    'Reply into the Wingman chat panel as the connected agent through Ulejra local chat',
     {
       text: z.string().describe('Reply text to display in the Wingman chat'),
     },
@@ -58,7 +58,7 @@ export function registerChatTools(server: McpServer): void {
     'Wait for new Wingman chat messages after a known message id',
     coerceShape({
       sinceId: z.number().optional().default(0).describe('Only return messages with id greater than this value'),
-      timeoutMs: z.number().optional().default(30000).describe('Maximum wait in milliseconds, capped by Tandem'),
+      timeoutMs: z.number().optional().default(30000).describe('Maximum wait in milliseconds, capped by Ulejra'),
     }),
     async ({ sinceId, timeoutMs }) => {
       const data = await apiCall('GET', `/chat/wait?since_id=${sinceId}&timeout_ms=${timeoutMs}`);
@@ -92,13 +92,13 @@ export function registerChatTools(server: McpServer): void {
 
   server.tool(
     'tandem_chat_status',
-    'Get Tandem local chat bus status for MCP/API Wingman chat',
+    'Get Ulejra local chat bus status for MCP/API Wingman chat',
     async () => {
       const data = await apiCall('GET', '/chat/status');
       return {
         content: [{
           type: 'text',
-          text: `Tandem chat status: ${data.available ? 'available' : 'unavailable'} (backend: ${data.backend || 'unknown'}, lastMessageId: ${data.lastMessageId ?? 0})`,
+          text: `Ulejra chat status: ${data.available ? 'available' : 'unavailable'} (backend: ${data.backend || 'unknown'}, lastMessageId: ${data.lastMessageId ?? 0})`,
         }],
       };
     }

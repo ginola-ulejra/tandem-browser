@@ -157,7 +157,7 @@
 
       // Listen for extension remove requests (from context menu)
       window.tandem.onExtensionRemoveRequest(async (data) => {
-        const confirmed = confirm(`Remove "${data.name}" from Tandem?`);
+        const confirmed = confirm(`Remove "${data.name}" from Ulejra?`);
         if (!confirmed) return;
         try {
           const resp = await fetch(`http://localhost:8765/extensions/uninstall/${data.diskId || data.id}`, {
@@ -200,26 +200,24 @@ function renderAboutPanel() {
   const titleEl = document.getElementById('sidebar-panel-title');
   const content = document.getElementById('sidebar-panel-content');
   
-  titleEl.textContent = 'About Tandem';
+  titleEl.textContent = 'About Ulejra';
   panel.classList.add('open');
   content.classList.remove('webview-mode');
   
   content.innerHTML = `
     <div class="about-panel-wrapper">
-      <img class="about-logo" src="tandem-bike.png" alt="Tandem">
-      <div class="about-title"><span class="about-t">T</span><span class="about-rest">andem</span></div>
-      <div class="about-subtitle">First-Party OpenClaw Companion Browser</div>
-      <div class="about-quote">Public developer preview for serious OpenClaw workflows</div>
+      <img class="about-logo" src="ulejra-logo.png" alt="Ulejra">
+      <div class="about-title"><span class="about-t">U</span><span class="about-rest">lejra</span></div>
+      <div class="about-subtitle">AI Browser for Business</div>
       <div class="about-version" id="about-version-text">...</div>
       <div class="about-info">
-        Built specifically for human-AI collaboration with OpenClaw.<br>
-        Maintained in the same ecosystem as OpenClaw, with local control and security built in.
+        You browse, your Ulejra assistant helps.<br>
+        Cookies, logins and saved passwords stay on this computer.
       </div>
       <div class="about-link-wrapper">
-        <a href="https://github.com/hydro13" class="about-link" id="about-github-link">GitHub — hydro13</a>
+        <a href="https://github.com/hydro13/tandem-browser" class="about-link" id="about-github-link">Based on Tandem Browser (MIT)</a>
       </div>
-      <div class="about-copyright">© 2026 Robin Waslander</div>
-      <div class="about-team">A first-party companion browser for OpenClaw</div>
+      <div class="about-copyright">© 2026 Ulejra · Tandem Browser © 2026 Robin Waslander</div>
     </div>
   `;
   
@@ -232,7 +230,7 @@ function renderAboutPanel() {
   if (githubLink) {
     githubLink.addEventListener('click', (e) => {
       e.preventDefault();
-      if (window.tandem) window.tandem.newTab('https://github.com/hydro13');
+      if (window.tandem) window.tandem.newTab('https://github.com/hydro13/tandem-browser');
     });
   }
 }

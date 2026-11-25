@@ -45,8 +45,8 @@ export function initChat() {
 
   if (backendSelector && backendSelector.children.length === 0) {
     backendSelector.innerHTML = `
-      <button class="backend-option" id="btn-backend-tandem" title="Use Tandem's built-in MCP/API chat">
-        <span class="backend-dot" id="dot-tandem"></span><span>Tandem</span>
+      <button class="backend-option" id="btn-backend-tandem" title="Use Ulejra's built-in MCP/API chat">
+        <span class="backend-dot" id="dot-tandem"></span><span>Ulejra</span>
       </button>
       <button class="backend-option" id="btn-backend-openclaw" title="Use the local OpenClaw gateway">
         <span class="backend-dot" id="dot-openclaw"></span><span>OpenClaw</span>
@@ -141,7 +141,7 @@ export function initChat() {
 
   function updateTandemChannelLabel() {
     const primary = tandemBackend.getPrimaryAgent?.();
-    const label = primary?.label || 'Tandem';
+    const label = primary?.label || 'Ulejra';
     const labelEl = btnTD?.querySelector('span:last-child');
     if (labelEl) labelEl.textContent = label;
   }
@@ -181,7 +181,7 @@ export function initChat() {
       if (activeId === 'claude') {
         inputEl.placeholder = 'Message to Claude...';
       } else if (activeId === 'tandem') {
-        inputEl.placeholder = 'Message to Tandem Wingman...';
+        inputEl.placeholder = 'Message to Ulejra Wingman...';
       } else {
         inputEl.placeholder = 'Message to Wingman...';
       }
@@ -195,7 +195,7 @@ export function initChat() {
       } else if (activeId === 'claude') {
         typingText.textContent = 'Claude is thinking...';
       } else if (activeId === 'tandem') {
-        typingText.textContent = 'Tandem Wingman is thinking...';
+        typingText.textContent = 'Ulejra Wingman is thinking...';
       } else {
         typingText.textContent = 'Wingman is typing...';
       }

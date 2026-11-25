@@ -126,7 +126,7 @@ export async function showTabContextMenu(domTabId, x, y) {
     const pbRes = await fetch('http://localhost:8765/pinboards', { headers: { Authorization: `Bearer ${getToken()}` } });
     const pbData = await pbRes.json();
     pbBoards = pbData.boards || [];
-  } catch { /* Tandem not running or no boards */ }
+  } catch { /* Ulejra not running or no boards */ }
 
   const menu = document.createElement('div');
   menu.className = 'tandem-ctx-menu';

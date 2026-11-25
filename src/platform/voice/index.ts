@@ -5,7 +5,7 @@ import { NotImplementedError, type PlatformId } from '../errors';
 import type { VoiceAdapter } from '../types';
 
 const WINDOWS_WHISPER_UNAVAILABLE =
-  'Windows voice transcription requires whisper.exe on PATH. Install Whisper yourself, make sure whisper.exe is available on PATH, and restart Tandem. Tandem does not download models or bundle Whisper.';
+  'Windows voice transcription requires whisper.exe on PATH. Install Whisper yourself, make sure whisper.exe is available on PATH, and restart Ulejra. Ulejra does not download models or bundle Whisper.';
 
 const UNIX_WHISPER_UNAVAILABLE =
   'No speech transcription backend available. Install whisper: pip install openai-whisper';

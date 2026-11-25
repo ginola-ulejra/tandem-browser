@@ -158,7 +158,7 @@ async function configureNativeMessagingHostDirectories(log: Logger): Promise<voi
     const os = await import('os');
     const path = await import('path');
     const nativeMsgDirs = [
-      path.join(os.homedir(), 'Library', 'Application Support', 'Tandem Browser', 'NativeMessagingHosts'),
+      path.join(os.homedir(), 'Library', 'Application Support', 'Ulejra', 'NativeMessagingHosts'),
       path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'),
       '/Library/Google/Chrome/NativeMessagingHosts',
     ].filter(d => { try { return require('fs').existsSync(d); } catch { return false; } });
@@ -403,7 +403,7 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
       buttons: ['OK'],
       defaultId: 0,
       title: 'Security containment activated',
-      message: `Tandem contained ${domainLabel}.`,
+      message: `Ulejra contained ${domainLabel}.`,
       detail: `${incident.actionSummary}\n\nWhy it happened: ${incident.reason}\n\nNext step: ${incident.reviewMessage}`,
     }).catch((e) => {
       log.warn('containment dialog failed:', e instanceof Error ? e.message : String(e));

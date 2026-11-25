@@ -8,7 +8,7 @@ export function registerMediaTools(server: McpServer): void {
 
   server.tool(
     'tandem_voice_start',
-    'Start speech recognition (voice-to-text). Tandem will begin listening for voice input.',
+    'Start speech recognition (voice-to-text). Ulejra will begin listening for voice input.',
     async () => {
       const data = await apiCall('POST', '/voice/start');
       await logActivity('voice_start');
@@ -105,7 +105,7 @@ export function registerMediaTools(server: McpServer): void {
 
   server.tool(
     'tandem_screenshot_capture_application',
-    'Capture a fresh screenshot of the full Tandem application window and return the saved file path.',
+    'Capture a fresh screenshot of the full Ulejra application window and return the saved file path.',
     async () => {
       const data = await apiCall('POST', '/screenshot/application');
       await logActivity('screenshot_capture_application');

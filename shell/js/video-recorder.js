@@ -135,7 +135,7 @@
         }
         if (source.error === 'screen-permission-denied') {
           console.warn('[video-recorder] Screen Recording permission denied');
-          alert('Screen Recording permission is required.\n\nGo to System Settings → Privacy & Security → Screen Recording and enable Tandem.');
+          alert('Screen Recording permission is required.\n\nGo to System Settings → Privacy & Security → Screen Recording and enable Ulejra.');
           return;
         }
 

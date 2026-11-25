@@ -1,13 +1,13 @@
 ---
 name: tandem-browser
-description: Use Tandem Browser's MCP server (local and remote agents) or HTTP API (local and remote agents) to inspect, browse, and interact with the user's shared browser safely. Prefer targeted tabs and sessions, use snapshot refs before raw DOM or JS, verify action completion explicitly, and leave durable handoffs instead of retrying blindly.
+description: Use Ulejra's MCP server (local and remote agents) or HTTP API (local and remote agents) to inspect, browse, and interact with the user's shared browser safely. Prefer targeted tabs and sessions, use snapshot refs before raw DOM or JS, verify action completion explicitly, and leave durable handoffs instead of retrying blindly.
 homepage: https://github.com/hydro13/tandem-browser
 user-invocable: false
 metadata: {"openclaw":{"emoji":"🚲","requires":{"bins":["curl","node"]}}}
 clawhub: true
 ---
-# Tandem Browser
-Tandem Browser is a live human-AI browser environment for shared work in the
+# Ulejra
+Ulejra is a live human-AI browser environment for shared work in the
 user's real browser context.
 
 Important: Tandem itself must already be running. The local API and MCP server
@@ -123,13 +123,13 @@ through either connection method when the client supports them.
 ### Option 2: HTTP API (local or remote)
 
 Use direct HTTP when the client can call the API itself. Local agents use the
-token from `~/.tandem/api-token`. Remote agents use a binding token obtained
+token from `~/.ulejra/api-token`. Remote agents use a binding token obtained
 through Tandem's pairing flow.
 
 ```bash
-API_PORT="$(cat ~/.tandem/api-port 2>/dev/null || printf 8765)"
+API_PORT="$(cat ~/.ulejra/api-port 2>/dev/null || printf 8765)"
 API="http://127.0.0.1:${API_PORT}"     # or http://<tailscale-ip>:<configured-port> for remote
-TOKEN="$(cat ~/.tandem/api-token)"      # or binding token from pairing
+TOKEN="$(cat ~/.ulejra/api-token)"      # or binding token from pairing
 AUTH_HEADER="Authorization: Bearer $TOKEN"
 JSON_HEADER="Content-Type: application/json"
 
@@ -141,9 +141,9 @@ curl -sS "$API/status"
 ```
 
 The Agent API port defaults to `8765` and is configurable in Tandem Settings.
-Local clients can read the current port from `~/.tandem/api-port` or the richer
-endpoint metadata in `~/.tandem/api-endpoints.json`. Do not replace
-`~/.tandem/api-token`; it remains the local bootstrap token contract.
+Local clients can read the current port from `~/.ulejra/api-port` or the richer
+endpoint metadata in `~/.ulejra/api-endpoints.json`. Do not replace
+`~/.ulejra/api-token`; it remains the local bootstrap token contract.
 
 ## Orienting yourself on connect
 
@@ -239,7 +239,7 @@ When proposing or editing Tandem code, preserve the platform contract in
 Windows 11 x64 is the active target, and Linux is best effort. Do not add new
 platform branches in shared code; route platform-specific behavior through the
 `src/platform/` adapter layer as it lands. Keep local agent bootstrap intact:
-`~/.tandem/api-token` remains readable by local MCP/HTTP clients until a
+`~/.ulejra/api-token` remains readable by local MCP/HTTP clients until a
 replacement bootstrap flow is explicitly designed and shipped. Shared helpers
 used by tests, MCP, or Node scripts must not require Electron `app` at module
 import time.
@@ -1059,7 +1059,7 @@ curl -sS -X POST "$API/execute-js" \
 Common failures and what they usually mean:
 
 - `401 Unauthorized`
-  Fix: re-read `~/.tandem/api-token`.
+  Fix: re-read `~/.ulejra/api-token`.
 
 - `428 agent_startup_required`
   Fix: read `GET /skill`, `GET /agent/manifest`, and

@@ -152,7 +152,7 @@ export function registerPairingRoutes(router: Router, ctx: RouteContext): void {
           state: result.binding.state,
         },
         bootstrap: {
-          message: 'Connection succeeded. Read these resources with this Bearer token before using Tandem as a browser.',
+          message: 'Connection succeeded. Read these resources with this Bearer token before using Ulejra as a browser.',
           enforcement: {
             enabled: true,
             behavior: 'Most authenticated API and MCP routes return HTTP 428 until /skill, /agent/manifest, and /agent/bootstrap have been read with this binding token.',

@@ -379,7 +379,7 @@ export class ExtensionToolbar {
 
     // Remove from Tandem
     menu.append(new MenuItem({
-      label: 'Remove from Tandem',
+      label: 'Remove from Ulejra',
       click: () => {
         // Send removal request to the renderer to handle with confirmation
         if (this.mainWindow) {

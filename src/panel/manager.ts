@@ -277,7 +277,7 @@ export class PanelManager {
           ...(config.webhook.secret ? { 'Authorization': `Bearer ${config.webhook.secret}` } : {}),
         },
         body: JSON.stringify({
-          text: `[Tandem Chat] User: ${msg.text}${msg.image ? ' [image attached]' : ''}`,
+          text: `[Ulejra Chat] User: ${msg.text}${msg.image ? ' [image attached]' : ''}`,
           mode: 'now',
         }),
         signal: AbortSignal.timeout(5000),

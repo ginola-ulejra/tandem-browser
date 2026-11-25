@@ -30,7 +30,7 @@ describe('Bootstrap Routes', () => {
       const res = await request(app).get('/agent');
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('text/markdown');
-      expect(res.text).toContain('Tandem Browser');
+      expect(res.text).toContain('Ulejra');
       expect(res.text).toContain('TDM-XXXX-XXXX');
     });
 
@@ -174,7 +174,7 @@ describe('Bootstrap Routes', () => {
       const res = await request(app).get('/skill');
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('text/markdown');
-      expect(res.text).toContain('Tandem Browser Skill');
+      expect(res.text).toContain('Ulejra Skill');
       expect(res.text).toContain('snapshot');
       expect(res.text).toContain('Required startup sequence');
       expect(res.text).toContain('/agent/bootstrap');

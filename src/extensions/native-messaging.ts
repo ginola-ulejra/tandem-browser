@@ -188,7 +188,7 @@ export class NativeMessagingSetup {
           // API not available — log once, and dump available native-messaging-related session properties
           apiChecked = true;
           log.info('🔌 Native messaging: session.setNativeMessagingHostDirectory() not available in Electron 40');
-          log.info('   Manifests mirrored to Tandem Browser/NativeMessagingHosts/ for Chromium auto-discovery');
+          log.info('   Manifests mirrored to Ulejra/NativeMessagingHosts/ for Chromium auto-discovery');
           // Debug: find any native/messaging-related properties on session
           try {
             const allKeys: string[] = [];
@@ -367,7 +367,7 @@ export class NativeMessagingSetup {
    * extension's chrome.runtime.connectNative() calls succeed.
    */
   private mirrorManifestsToTandemDir(): void {
-    const tandemDir = path.join(os.homedir(), 'Library', 'Application Support', 'Tandem Browser', 'NativeMessagingHosts');
+    const tandemDir = path.join(os.homedir(), 'Library', 'Application Support', 'Ulejra', 'NativeMessagingHosts');
 
     // Source directories (Chrome/Chromium) — skip Tandem dirs themselves
     const sourceDirs = [
@@ -381,7 +381,7 @@ export class NativeMessagingSetup {
     try {
       fs.mkdirSync(tandemDir, { recursive: true });
     } catch {
-      log.warn('⚠️ Native messaging: failed to create Tandem NativeMessagingHosts directory');
+      log.warn('⚠️ Native messaging: failed to create Ulejra NativeMessagingHosts directory');
       return;
     }
 

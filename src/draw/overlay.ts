@@ -37,7 +37,7 @@ export class DrawOverlayManager {
     this.configManager = configManager ?? null;
     this.googlePhotosManager = googlePhotosManager ?? null;
     this.screenshotDir = path.join(app.getPath('userData'), 'screenshots');
-    this.picturesDir = path.join(os.homedir(), 'Pictures', 'Tandem');
+    this.picturesDir = path.join(os.homedir(), 'Pictures', 'Ulejra');
     if (!fs.existsSync(this.screenshotDir)) {
       fs.mkdirSync(this.screenshotDir, { recursive: true });
     }

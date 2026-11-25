@@ -83,17 +83,19 @@
   "overrides": {
     "yauzl": "3.2.1"
   },
-  "productName": "Tandem Browser",
+  "productName": "Ulejra",
   "build": {
-    "appId": "com.tandem.browser",
-    "artifactName": "tandem-browser-${version}-${arch}.${ext}",
+    "appId": "com.ulejra.desktop",
+    "artifactName": "ulejra-${version}-${arch}.${ext}",
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "shell/**/*",
       "node_modules/**/*"
     ],
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "mac": {
       "category": "public.app-category.productivity",
@@ -117,21 +119,15 @@
           ]
         }
       ],
-      "artifactName": "tandem-browser-${version}-${arch}.${ext}",
+      "artifactName": "ulejra-${version}-${arch}.${ext}",
       "signAndEditExecutable": false,
-      "publish": [
-        {
-          "provider": "github",
-          "owner": "hydro13",
-          "repo": "tandem-browser"
-        }
-      ]
+      "publish": null
     },
     "nsis": {
-      "artifactName": "tandem-browser-${version}-${arch}-setup.${ext}"
+      "artifactName": "ulejra-${version}-${arch}-setup.${ext}"
     },
     "portable": {
-      "artifactName": "tandem-browser-${version}-${arch}-portable.${ext}"
+      "artifactName": "ulejra-${version}-${arch}-portable.${ext}"
     },
     "linux": {
       "category": "Utility"

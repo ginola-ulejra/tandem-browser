@@ -55,7 +55,7 @@ export class VideoRecorderManager {
   constructor() {
     this.recordingsDir = tandemDir('recordings');
     this.tmpDir = path.join(this.recordingsDir, 'tmp');
-    this.moviesDir = path.join(app.getPath('home'), 'Movies', 'Tandem');
+    this.moviesDir = path.join(app.getPath('home'), 'Movies', 'Ulejra');
     for (const dir of [this.recordingsDir, this.tmpDir, this.moviesDir]) {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     }

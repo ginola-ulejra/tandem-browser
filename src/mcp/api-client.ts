@@ -30,14 +30,14 @@ export async function apiCall(method: string, endpoint: string, body?: any, head
   } catch (err) {
     const errObj = err as NodeJS.ErrnoException & { cause?: NodeJS.ErrnoException };
     if (errObj.code === 'ECONNREFUSED' || errObj.cause?.code === 'ECONNREFUSED') {
-      throw new Error('Tandem Browser is not running. Start Tandem with \'npm start\' and try again.', { cause: err });
+      throw new Error('Ulejra is not running. Start Ulejra with \'npm start\' and try again.', { cause: err });
     }
     throw err;
   }
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
-    throw new Error(`Tandem API error: ${response.status} ${response.statusText} — ${text}`);
+    throw new Error(`Ulejra API error: ${response.status} ${response.statusText} — ${text}`);
   }
 
   const contentType = response.headers.get('content-type');

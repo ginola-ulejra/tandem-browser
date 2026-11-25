@@ -243,7 +243,7 @@
       if (data.title) {
         entry.tabEl.querySelector('.tab-title').textContent = data.title;
         if (tabId === activeTabId) {
-          document.title = `${data.title} — Tandem`;
+          document.title = `${data.title} — Ulejra`;
         }
       }
 

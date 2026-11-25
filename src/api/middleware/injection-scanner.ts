@@ -289,7 +289,7 @@ export function injectionScannerMiddleware(req: Request, res: Response, next: Ne
             reason: 'prompt_injection_detected',
             riskScore: report.riskScore,
             domain,
-            message: `⚠️ This page was BLOCKED by Tandem Security — prompt injection detected (score: ${report.riskScore}/100). Content was NOT forwarded. The user has been notified and can override if they choose.`,
+            message: `⚠️ This page was BLOCKED by Ulejra Security — prompt injection detected (score: ${report.riskScore}/100). Content was NOT forwarded. The user has been notified and can override if they choose.`,
             findings: warning.findings,
             overrideUrl: `POST /security/injection-override {"domain":"${domain}"}`,
           });
@@ -307,7 +307,7 @@ export function injectionScannerMiddleware(req: Request, res: Response, next: Ne
         if (now - lastNotif > NOTIFICATION_COOLDOWN_MS) {
           try {
             new Notification({
-              title: '⚠️ Prompt Injection Detected — Tandem',
+              title: '⚠️ Prompt Injection Detected — Ulejra',
               body: `Risk: ${report.riskScore}/100 on ${domain}\n${warning.findings[0]?.description || ''}`,
               urgency: report.riskScore >= 50 ? 'critical' : 'normal',
             }).show();

@@ -254,7 +254,7 @@ export class GooglePhotosManager {
       body: JSON.stringify({
         newMediaItems: [
           {
-            description: 'Uploaded from Tandem Browser',
+            description: 'Uploaded from Ulejra',
             simpleMediaItem: {
               uploadToken,
               fileName: filename,

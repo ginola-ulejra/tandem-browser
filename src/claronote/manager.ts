@@ -260,7 +260,7 @@ export class ClaroNoteManager {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'User-Agent': 'Tandem Browser/1.0'
+      'User-Agent': 'Ulejra/1.0'
     };
 
     if (token) {

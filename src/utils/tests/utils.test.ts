@@ -23,9 +23,9 @@ describe('tandemDir()', () => {
     expect(tandemDir('api-token')).toBe(selectPlatform().paths.tandemDir('api-token'));
   });
 
-  it('keeps the macOS legacy ~/.tandem api-token path pinned', () => {
+  it('keeps the macOS ~/.ulejra api-token path pinned', () => {
     expect(selectPlatform('darwin').paths.tandemDir('api-token')).toBe(
-      path.join(os.homedir(), '.tandem', 'api-token')
+      path.join(os.homedir(), '.ulejra', 'api-token')
     );
   });
 });

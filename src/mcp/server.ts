@@ -126,7 +126,7 @@ function startEventListener(): void {
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log.info('Tandem MCP server started (stdio transport)');
+  log.info('Ulejra MCP server started (stdio transport)');
 
   // Start SSE listener for live notifications
   startEventListener();

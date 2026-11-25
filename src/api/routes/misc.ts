@@ -147,7 +147,7 @@ export function registerMiscRoutes(router: Router, ctx: RouteContext): void {
       const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
       if (!win) {
         res.status(422).json({
-          error: 'Folder picker requires a local Tandem window. This endpoint is not available for remote agents.',
+          error: 'Folder picker requires a local Ulejra window. This endpoint is not available for remote agents.',
           localOnly: true,
         });
         return;

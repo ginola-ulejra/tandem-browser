@@ -6,7 +6,7 @@ import { wrapWithSecurityContext } from './_security-context.js';
 export function registerContentTools(server: McpServer): void {
   server.tool(
     'tandem_read_page',
-    'Read page content as markdown text (max 2000 words). Supports targeting a background tab by ID. If the page triggers Tandem\'s prompt-injection scanner, the output is prefixed with a warning banner (warn) or replaced with a block marker (high risk).',
+    'Read page content as markdown text (max 2000 words). Supports targeting a background tab by ID. If the page triggers Ulejra\'s prompt-injection scanner, the output is prefixed with a warning banner (warn) or replaced with a block marker (high risk).',
     {
       tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
     },
@@ -84,7 +84,7 @@ export function registerContentTools(server: McpServer): void {
 
   server.tool(
     'tandem_extract_content',
-    'Extract structured content from the current page using Tandem\'s content extraction engine. Supports targeting a background tab by ID.',
+    'Extract structured content from the current page using Ulejra\'s content extraction engine. Supports targeting a background tab by ID.',
     {
       tabId: z.string().optional().describe('Optional tab ID to target a background tab instead of the active tab'),
     },
