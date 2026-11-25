@@ -161,6 +161,16 @@ export function createMockContext(): RouteContext {
       updateConfig: vi.fn().mockReturnValue({}),
     } as any,
 
+    // ── ulejraAccount ─────────────────────
+    ulejraAccount: {
+      status: vi.fn().mockResolvedValue({ signedIn: false, backendUrl: 'http://localhost:3080' }),
+      login: vi.fn(),
+      logout: vi.fn().mockResolvedValue({ signedIn: false, backendUrl: 'http://localhost:3080' }),
+      getAccessToken: vi.fn(),
+      authorizedFetch: vi.fn(),
+      backendUrl: vi.fn().mockReturnValue('http://localhost:3080'),
+    } as any,
+
     // ── googlePhotosManager ─────────────────────
     googlePhotosManager: {
       getStatus: vi.fn().mockReturnValue({

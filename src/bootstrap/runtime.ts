@@ -9,6 +9,8 @@ import { AgentTrustStore } from '../security/agent-trust';
 import { TabLockManager } from '../agents/tab-lock-manager';
 import { LoginManager } from '../auth/login-manager';
 import { GooglePhotosManager } from '../integrations/google-photos';
+import { UlejraAccount } from '../ulejra/account';
+import { UlejraAssistant } from '../ulejra/assistant';
 import { ContextBridge } from '../bridge/context-bridge';
 import { buildOwnershipContextForTabId } from '../tabs/runtime-context';
 import { ClaroNoteManager } from '../claronote/manager';
@@ -194,6 +196,7 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
 
   runtime.configManager = new ConfigManager();
   runtime.googlePhotosManager = new GooglePhotosManager(runtime.configManager);
+  runtime.ulejraAccount = new UlejraAccount(runtime.configManager);
   runtime.tabManager = new TabManager(win);
   runtime.panelManager = new PanelManager(win, runtime.configManager);
   runtime.drawManager = new DrawOverlayManager(win, runtime.configManager, runtime.googlePhotosManager);
@@ -250,6 +253,34 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
   runtime.eventStream = new EventStreamManager();
   runtime.handoffManager = new HandoffManager();
   runtime.taskManager = new TaskManager();
+  const taskManager = runtime.taskManager;
+  runtime.ulejraAssistant = new UlejraAssistant({
+    configManager: runtime.configManager,
+    panelManager: runtime.panelManager,
+    account: runtime.ulejraAccount,
+    onEmergencyStop: (listener) => {
+      taskManager.on('emergency-stop', listener);
+      return () => taskManager.off('emergency-stop', listener);
+    },
+    requestApproval: (description, signal) => {
+      const task = taskManager.createTask(description, 'claude', 'claude', [{
+        description,
+        action: { type: 'ulejra_tool', params: {} },
+        riskLevel: 'high',
+        requiresApproval: true,
+      }]);
+      return Promise.race([
+        taskManager.requestApproval(task, 0),
+        new Promise<boolean>((resolve) => {
+          const timer = setTimeout(() => resolve(false), 5 * 60_000);
+          signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            resolve(false);
+          }, { once: true });
+        }),
+      ]);
+    },
+  });
   runtime.agentTrust = new AgentTrustStore();
   // Load persisted T3 trusted domains from disk. Errors are logged
   // internally; a failure leaves the store in the empty state which is
@@ -482,6 +513,7 @@ export function createManagerRegistry(runtime: RuntimeManagers): ManagerRegistry
     syncManager: runtime.syncManager,
     pinboardManager: runtime.pinboardManager,
     googlePhotosManager: runtime.googlePhotosManager,
+    ulejraAccount: runtime.ulejraAccount,
     clipboardManager: runtime.clipboardManager,
     pairingManager: runtime.pairingManager,
     agentTrust: runtime.agentTrust,

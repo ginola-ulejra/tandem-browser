@@ -51,6 +51,7 @@ import type { SyncManager } from './sync/manager';
 import type { PinboardManager } from './pinboards/manager';
 import type { ClipboardManager } from './clipboard/manager';
 import type { GooglePhotosManager } from './integrations/google-photos';
+import type { UlejraAccount } from './ulejra/account';
 import type { PairingManager } from './pairing/manager';
 import type { CloudflarePolicyManager } from './cloudflare/policy-manager';
 
@@ -145,6 +146,8 @@ export interface ManagerRegistry {
   pinboardManager: PinboardManager;
   /** Google Photos API integration for OAuth and image uploads. See src/integrations/google-photos.ts */
   googlePhotosManager: GooglePhotosManager;
+  /** The user's Ulejra account: sign-in, access tokens and balance. See src/ulejra/account.ts */
+  ulejraAccount: UlejraAccount;
   /** Reads and saves clipboard content (text, HTML, images) to disk. See src/clipboard/manager.ts */
   clipboardManager: ClipboardManager;
   /** Remote agent pairing with setup codes, binding tokens, and lifecycle management. See src/pairing/manager.ts */

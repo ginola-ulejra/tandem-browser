@@ -106,6 +106,12 @@ export interface TandemConfig {
     notifyOnActivity: boolean;   // stream activity events to OpenClaw (Wingman Vision)
   };
 
+  // Ulejra account — the server the desktop app signs in to (same account as the web app)
+  ulejra: {
+    backendUrl: string;   // e.g. "https://app.ulejra.ai"; http only for localhost
+    assistantEnabled: boolean;  // the Ulejra assistant answers in the built-in Wingman chat
+  };
+
   // Onboarding
   onboardingComplete: boolean;
 }
@@ -189,6 +195,10 @@ const DEFAULT_CONFIG: TandemConfig = {
     secret: '',
     notifyOnRobinChat: true,
     notifyOnActivity: true,
+  },
+  ulejra: {
+    backendUrl: 'http://localhost:3080',
+    assistantEnabled: true,
   },
   onboardingComplete: false,
 };

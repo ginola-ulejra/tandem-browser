@@ -146,7 +146,7 @@
     .field-label { font-size: 13px; font-weight: 500; }
     .field-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 
-    select, input[type="text"], input[type="url"], input[type="number"] {
+    select, input[type="text"], input[type="url"], input[type="number"], input[type="email"], input[type="password"] {
       background: var(--input-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -156,7 +156,7 @@
       outline: none;
       min-width: 180px;
     }
-    select:focus, input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus {
+    select:focus, input[type="text"]:focus, input[type="url"]:focus, input[type="number"]:focus, input[type="email"]:focus, input[type="password"]:focus {
       border-color: var(--accent);
     }
 
@@ -491,7 +491,8 @@
   </div>
 
   <nav class="settings-nav" id="settings-nav">
-    <a href="#general" class="active" data-section="general">⚙️ General</a>
+    <a href="#account" class="active" data-section="account">👤 Ulejra Account</a>
+    <a href="#general" data-section="general">⚙️ General</a>
     <a href="#screenshots" data-section="screenshots">📸 Screenshots</a>
     <a href="#voice" data-section="voice">🎙️ Voice</a>
     <a href="#appearance" data-section="appearance">🎨 Theme</a>
@@ -505,6 +506,69 @@
   </nav>
 
   <div class="settings-body">
+
+    <!-- ═══ Ulejra Account ═══ -->
+    <div class="section" id="account">
+      <h2>👤 Ulejra Account</h2>
+      <p class="section-desc">Sign in with the same email and password as the Ulejra web app. Your password is sent to the Ulejra server once and never stored on this computer.</p>
+
+      <div id="ulejra-signed-out">
+        <div class="field">
+          <div class="field-info">
+            <div class="field-label">Email</div>
+          </div>
+          <input type="email" id="ulejra-email" autocomplete="username" placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <div class="field-info">
+            <div class="field-label">Password</div>
+          </div>
+          <input type="password" id="ulejra-password" autocomplete="current-password" />
+        </div>
+        <div class="field">
+          <div class="field-info">
+            <div class="field-desc" id="ulejra-login-error" role="alert"></div>
+          </div>
+          <button class="btn btn-primary" id="btn-ulejraSignIn" type="button">Sign in</button>
+        </div>
+      </div>
+
+      <div id="ulejra-signed-in" hidden>
+        <div class="field">
+          <div class="field-info">
+            <div class="field-label">Signed in as</div>
+            <div class="field-desc" id="ulejra-account-email"></div>
+          </div>
+          <button class="btn btn-danger" id="btn-ulejraSignOut" type="button">Sign out</button>
+        </div>
+        <div class="field">
+          <div class="field-info">
+            <div class="field-label">Balance</div>
+            <div class="field-desc">Shared with the Ulejra web app</div>
+          </div>
+          <div class="field-label" id="ulejra-balance">—</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Ulejra assistant in chat</div>
+          <div class="field-desc">Answers your messages in the Wingman chat. Each answer uses your balance.</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="cfg-ulejraAssistant">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="field-info">
+          <div class="field-label">Ulejra server</div>
+          <div class="field-desc">Changing the server signs you out of the current one.</div>
+        </div>
+        <input type="url" id="cfg-ulejraBackendUrl" placeholder="https://app.ulejra.ai" />
+      </div>
+    </div>
 
     <!-- ═══ General ═══ -->
     <div class="section" id="general">

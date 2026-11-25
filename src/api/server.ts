@@ -34,6 +34,7 @@ import { registerAwarenessRoutes } from './routes/awareness';
 import { registerClipboardRoutes } from './routes/clipboard';
 import { registerBootstrapRoutes } from './routes/bootstrap';
 import { registerPairingRoutes } from './routes/pairing';
+import { registerUlejraRoutes } from './routes/ulejra';
 import {
   AGENT_STARTUP_SEQUENCE,
   withBaseUrl,
@@ -616,6 +617,7 @@ export class TandemAPI {
     registerClipboardRoutes(router, ctx);
     registerBootstrapRoutes(router, ctx);
     registerPairingRoutes(router, ctx);
+    registerUlejraRoutes(router, ctx);
 
     // Native messaging proxy: route extension connectNative/sendNativeMessage
     // through Tandem's API since Electron 40 doesn't support them natively.

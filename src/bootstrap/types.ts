@@ -48,6 +48,8 @@ import type { WorkflowEngine } from '../workflow/engine';
 import type { LoginManager } from '../auth/login-manager';
 import type { ClipboardManager } from '../clipboard/manager';
 import type { GooglePhotosManager } from '../integrations/google-photos';
+import type { UlejraAccount } from '../ulejra/account';
+import type { UlejraAssistant } from '../ulejra/assistant';
 import type { PairingManager } from '../pairing/manager';
 import type { CloudflarePolicyManager } from '../cloudflare/policy-manager';
 
@@ -100,6 +102,8 @@ export interface RuntimeManagers {
   workflowEngine: WorkflowEngine;
   loginManager: LoginManager;
   googlePhotosManager: GooglePhotosManager;
+  ulejraAccount: UlejraAccount;
+  ulejraAssistant: UlejraAssistant;
   clipboardManager: ClipboardManager;
   pairingManager: PairingManager;
   agentTrust: AgentTrustStore;

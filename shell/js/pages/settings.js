@@ -12,7 +12,103 @@ async function loadConfig() {
   } catch { /* API not ready */ }
   await loadGooglePhotosStatus();
   applyConfigToUI();
+  await loadUlejraAccount();
 }
+
+// ═══ Ulejra account ═══
+
+function formatUsd(usd) {
+  return '$' + usd.toFixed(usd > 0 && usd < 0.01 ? 4 : 2);
+}
+
+function renderUlejraAccount(status) {
+  const signedIn = !!status?.signedIn;
+  document.getElementById('ulejra-signed-out').hidden = signedIn;
+  document.getElementById('ulejra-signed-in').hidden = !signedIn;
+  const urlInput = document.getElementById('cfg-ulejraBackendUrl');
+  if (urlInput && document.activeElement !== urlInput) {
+    urlInput.value = status?.backendUrl || config.ulejra?.backendUrl || '';
+  }
+  if (!signedIn) return;
+  const who = status.name ? `${status.name} (${status.email})` : status.email;
+  const sessionNote = status.remembered === false
+    ? ' — keychain unavailable, so you will sign in again next time Ulejra starts'
+    : '';
+  document.getElementById('ulejra-account-email').textContent = (who || '') + sessionNote;
+  const balanceEl = document.getElementById('ulejra-balance');
+  if (status.error) {
+    balanceEl.textContent = 'Unavailable';
+    balanceEl.title = status.error;
+  } else if (status.balance) {
+    balanceEl.textContent = formatUsd(status.balance.usd);
+    balanceEl.title = `${Math.round(status.balance.tokenCredits).toLocaleString()} credits`;
+  } else {
+    balanceEl.textContent = 'Not metered';
+    balanceEl.title = '';
+  }
+}
+
+async function loadUlejraAccount() {
+  try {
+    const res = await fetch(`${API}/integrations/ulejra/status`);
+    renderUlejraAccount(res.ok ? await res.json() : { signedIn: false });
+  } catch {
+    renderUlejraAccount({ signedIn: false });
+  }
+}
+
+async function signInToUlejra() {
+  const button = document.getElementById('btn-ulejraSignIn');
+  const errorEl = document.getElementById('ulejra-login-error');
+  const passwordEl = document.getElementById('ulejra-password');
+  errorEl.textContent = '';
+  button.disabled = true;
+  try {
+    const res = await fetch(`${API}/integrations/ulejra/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('ulejra-email').value,
+        password: passwordEl.value,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      errorEl.textContent = body.error || 'Sign-in failed.';
+      return;
+    }
+    passwordEl.value = '';
+    renderUlejraAccount(body);
+    showToast('Signed in ✓');
+  } catch {
+    errorEl.textContent = 'Ulejra is not responding. Try again.';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function signOutOfUlejra() {
+  try {
+    const res = await fetch(`${API}/integrations/ulejra/logout`, { method: 'POST' });
+    renderUlejraAccount(res.ok ? await res.json() : { signedIn: false });
+    showToast('Signed out ✓');
+  } catch {
+    showToast('Sign-out failed ✕');
+  }
+}
+
+document.getElementById('btn-ulejraSignIn')?.addEventListener('click', signInToUlejra);
+document.getElementById('ulejra-password')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') signInToUlejra();
+});
+document.getElementById('btn-ulejraSignOut')?.addEventListener('click', signOutOfUlejra);
+document.getElementById('cfg-ulejraBackendUrl')?.addEventListener('change', async (e) => {
+  const backendUrl = e.target.value.trim();
+  if (!backendUrl || backendUrl === config.ulejra?.backendUrl) return;
+  if (await saveConfig({ ulejra: { backendUrl } })) {
+    await loadUlejraAccount();
+  }
+});
 
 async function loadGooglePhotosStatus() {
   try {
@@ -42,6 +138,7 @@ function applyConfigToUI() {
   setVal('cfg-language', g.language || 'nl-BE');
   setVal('cfg-wingmanPanelPosition', g.wingmanPanelPosition || 'right');
   setChecked('cfg-wingmanPanelDefaultOpen', !!g.wingmanPanelDefaultOpen);
+  setChecked('cfg-ulejraAssistant', config.ulejra?.assistantEnabled !== false);
   setChecked('cfg-showBookmarksBar', g.showBookmarksBar !== false);
   toggleField('field-customStartUrl', g.startPage === 'custom');
   renderQuickLinkRows(g.quickLinks || []);
@@ -315,6 +412,7 @@ wire('cfg-wingmanPanelDefaultOpen', 'general.wingmanPanelDefaultOpen');
 wire('cfg-localFolder', 'screenshots.localFolder');
 wire('cfg-localFolderPath', 'screenshots.localFolderPath');
 wire('cfg-googlePhotos', 'screenshots.googlePhotos');
+wire('cfg-ulejraAssistant', 'ulejra.assistantEnabled');
 wire('cfg-voiceLanguage', 'voice.inputLanguage');
 wire('cfg-autoSendOnSilence', 'voice.autoSendOnSilence');
 wire('cfg-theme', 'appearance.theme');

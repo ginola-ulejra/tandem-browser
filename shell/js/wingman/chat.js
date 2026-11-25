@@ -527,6 +527,8 @@ export function initChat() {
         return;
       }
       if (msg.from === 'user') return;
+      // The built-in chat backend already shows this message when it polls the same history.
+      if (currentMode === 'tandem' && tandemBackend.isConnected()) return;
       const source = msg.from; // 'wingman' or 'claude'
       appendMessage('assistant', msg.text, msg.timestamp, source, msg.image, msg.actorLabel);
       if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;

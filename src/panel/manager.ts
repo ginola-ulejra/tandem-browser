@@ -58,6 +58,7 @@ export class PanelManager {
   private panelOpen = false;
   private maxEvents = 500;
   private chatHistoryPath: string;
+  private chatListeners = new Set<(msg: ChatMessage) => void>();
   private wingmanTyping = false;
   private chatImagesDir: string;
 
@@ -145,12 +146,26 @@ export class PanelManager {
 
     this.maybeNotifyForIncomingReply(msg);
 
+    for (const listener of this.chatListeners) {
+      try {
+        listener(msg);
+      } catch (e) {
+        log.warn('Chat listener failed:', e instanceof Error ? e.message : String(e));
+      }
+    }
+
     // Fire webhook for user messages (async, non-blocking)
     if (opts.notifyWebhook !== false) {
       this.fireWebhook(msg).catch(e => log.warn('fireWebhook failed:', e instanceof Error ? e.message : e));
     }
 
     return msg;
+  }
+
+  /** Calls `listener` after every chat message is stored. Returns an unsubscribe function. */
+  onChatMessage(listener: (msg: ChatMessage) => void): () => void {
+    this.chatListeners.add(listener);
+    return () => this.chatListeners.delete(listener);
   }
 
   /** Get chat history */

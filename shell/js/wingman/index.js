@@ -664,17 +664,20 @@
         card.dataset.requestId = data.requestId;
 
         const riskClass = data.riskLevel === 'high' ? 'risk-high' : 'risk-medium';
-        const riskLabel = data.riskLevel === 'high' ? 'Hoog risico' : 'Medium risico';
-        const actionDesc = data.action ? `${data.action.type}: ${JSON.stringify(data.action.params || {}).slice(0, 80)}` : '';
+        const riskLabel = data.riskLevel === 'high' ? 'High risk' : 'Medium risk';
+        // Ulejra actions carry their own readable description; others show the raw action.
+        const isUlejra = data.action?.type === 'ulejra_tool';
+        const actionDesc = data.action && !isUlejra ? `${data.action.type}: ${JSON.stringify(data.action.params || {}).slice(0, 80)}` : '';
+        const title = isUlejra ? '🤖 Ulejra wants to do this for you:' : '🤖 Wingman wants to perform an action:';
 
         card.innerHTML = `
-          <div class="approval-title">🤖 Wingman wants to perform an action:</div>
-          <div class="approval-desc">${escapeHtml(data.description || '')}</div>
-          <div class="approval-desc" style="font-family:monospace;font-size:10px;">${escapeHtml(actionDesc)}</div>
+          <div class="approval-title">${title}</div>
+          <div class="approval-desc" style="white-space:pre-line;">${escapeHtml(data.description || '')}</div>
+          ${actionDesc ? `<div class="approval-desc" style="font-family:monospace;font-size:10px;">${escapeHtml(actionDesc)}</div>` : ''}
           <span class="approval-risk ${riskClass}">${riskLabel}</span>
           <div class="approval-actions">
-            <button class="btn-approve" data-task="${escapeHtml(data.taskId)}" data-step="${escapeHtml(data.stepId)}">✅ Goedkeuren</button>
-            <button class="btn-reject" data-task="${escapeHtml(data.taskId)}" data-step="${escapeHtml(data.stepId)}">❌ Afwijzen</button>
+            <button class="btn-approve" data-task="${escapeHtml(data.taskId)}" data-step="${escapeHtml(data.stepId)}">✅ Approve</button>
+            <button class="btn-reject" data-task="${escapeHtml(data.taskId)}" data-step="${escapeHtml(data.stepId)}">❌ Reject</button>
           </div>
         `;
 
