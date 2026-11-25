@@ -2,6 +2,7 @@ import type { ConfigManager } from '../config/manager';
 import type { ChatMessage, PanelManager } from '../panel/manager';
 import { createLogger } from '../utils/logger';
 import { UlejraAccountError, type UlejraAccount } from './account';
+import type { BrowserToolbox } from './browserTools';
 
 const log = createLogger('UlejraAssistant');
 
@@ -43,6 +44,14 @@ interface PendingApproval {
 
 /** Approval rounds in one answer: each stops for the user's decisions, then continues. */
 const MAX_APPROVAL_ROUNDS = 3;
+/** Browser rounds in one answer: each runs the agent's browser calls, then continues. */
+const MAX_BROWSER_ROUNDS = 12;
+
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
 
 /** The approval card text: the action, then what it will do, one line each. */
 export function describeApproval(approval: PendingApproval): string {
@@ -94,7 +103,7 @@ export function buildConversation(
 }
 
 interface DesktopChatReply {
-  message?: { content?: string } | null;
+  message?: { content?: string; tool_calls?: ToolCall[] } | null;
   finishReason?: string | null;
   added?: ServerTurn[];
   pendingApprovals?: PendingApproval[];
@@ -109,6 +118,8 @@ export interface UlejraAssistantDeps {
   onEmergencyStop?: (listener: () => void) => () => void;
   /** Shows an approval card and resolves with the user's decision (false on stop or timeout). */
   requestApproval?: (description: string, signal: AbortSignal) => Promise<boolean>;
+  /** What the agent may do in the user's browser; without it the agent only chats. */
+  browserTools?: BrowserToolbox;
   now?: () => number;
 }
 
@@ -184,13 +195,22 @@ export class UlejraAssistant {
     const transcript: ServerTurn[] = [];
     let approvals: Record<string, 'approve' | 'reject'> | undefined;
     try {
-      for (let round = 0; ; round++) {
+      let approvalRounds = 0;
+      let browserRounds = 0;
+      for (;;) {
+        const tools = this.deps.browserTools?.definitions;
+        const request = {
+          messages: [...conversation, ...transcript],
+          ...(tools?.length ? { tools } : {}),
+          ...(approvals ? { approvals } : {}),
+        };
+        approvals = undefined;
         const response = await account.authorizedFetch(
           '/api/ulejra/desktop/chat',
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ messages: [...conversation, ...transcript], ...(approvals ? { approvals } : {}) }),
+            body: JSON.stringify(request),
             signal: controller.signal,
           },
           CHAT_TIMEOUT_MS,
@@ -198,21 +218,43 @@ export class UlejraAssistant {
         const body = (await response.json().catch(() => ({}))) as DesktopChatReply;
         if (response.ok && body.finishReason === 'approval_required' && body.pendingApprovals?.length) {
           transcript.push(...(body.added ?? []));
-          if (!this.deps.requestApproval || round >= MAX_APPROVAL_ROUNDS) {
+          if (!this.deps.requestApproval || ++approvalRounds > MAX_APPROVAL_ROUNDS) {
             this.notice('This needs your approval. Approve it in the Ulejra web app, then ask me again.');
             return;
           }
-          panelManager.setWingmanTyping(false);
           approvals = {};
           for (const pending of body.pendingApprovals) {
-            const approved = await this.deps.requestApproval(describeApproval(pending), controller.signal);
-            approvals[pending.toolCallId] = approved ? 'approve' : 'reject';
+            approvals[pending.toolCallId] = (await this.approve(describeApproval(pending), controller.signal))
+              ? 'approve'
+              : 'reject';
           }
           if (controller.signal.aborted) {
             this.notice('Stopped.');
             return;
           }
-          panelManager.setWingmanTyping(true);
+          continue;
+        }
+        const browser = this.deps.browserTools;
+        const calls = body.message?.tool_calls ?? [];
+        if (response.ok && body.finishReason === 'tool_calls' && browser && calls.length > 0) {
+          transcript.push(...(body.added ?? []));
+          if (++browserRounds > MAX_BROWSER_ROUNDS) {
+            this.notice('I stopped after many steps in the browser. Tell me how you would like to continue.');
+            return;
+          }
+          for (const call of calls) {
+            /** Calls for the server's own tools already have their results in `added`. */
+            if (!browser.has(call.function.name)) continue;
+            transcript.push({
+              role: 'tool',
+              tool_call_id: call.id,
+              content: await this.runBrowserCall(browser, call, controller.signal),
+            });
+            if (controller.signal.aborted) {
+              this.notice('Stopped.');
+              return;
+            }
+          }
           continue;
         }
         this.finish(response, body, lastUserId);
@@ -233,6 +275,35 @@ export class UlejraAssistant {
       if (this.inFlight === controller) this.inFlight = null;
       panelManager.setWingmanTyping(false);
     }
+  }
+
+  /** Asks the user on an approval card; without a way to ask, the answer is no. */
+  private async approve(description: string, signal: AbortSignal): Promise<boolean> {
+    if (!this.deps.requestApproval) return false;
+    const { panelManager } = this.deps;
+    panelManager.setWingmanTyping(false);
+    try {
+      return await this.deps.requestApproval(description, signal);
+    } finally {
+      if (!signal.aborted) panelManager.setWingmanTyping(true);
+    }
+  }
+
+  /** One browser call: asks first when the tool needs approval; the result is text for the model. */
+  private async runBrowserCall(browser: BrowserToolbox, call: ToolCall, signal: AbortSignal): Promise<string> {
+    let args: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(call.function.arguments || '{}') as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+      args = parsed as Record<string, unknown>;
+    } catch {
+      return JSON.stringify({ error: 'INVALID_ARGUMENTS', message: 'Arguments must be a JSON object.' });
+    }
+    const approval = browser.approvalFor(call.function.name, args);
+    if (approval && !(await this.approve(approval, signal))) {
+      return JSON.stringify({ error: 'DECLINED', message: 'The user declined this action. Do not try it again.' });
+    }
+    return browser.run(call.function.name, args);
   }
 
   /** Posts the final answer, or says why there is none. */

@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ConfigManager } from '../../config/manager';
 import type { ChatMessage, PanelManager } from '../../panel/manager';
 import { UlejraAccountError, type UlejraAccount } from '../account';
+import { createBrowserToolbox, type BrowserToolbox } from '../browserTools';
 import { ULEJRA_AGENT_TYPE, ULEJRA_NOTICE_TYPE, UlejraAssistant, buildConversation, describeApproval } from '../assistant';
+
+vi.mock('../../mcp/api-client', () => ({ apiCall: vi.fn(), truncateToWords: (t: string) => t }));
 
 vi.mock('../../utils/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
@@ -41,6 +44,7 @@ function setup(
   authorizedFetch: ReturnType<typeof vi.fn>,
   config: { activeBackend?: string; assistantEnabled?: boolean } = {},
   requestApproval?: (description: string, signal: AbortSignal) => Promise<boolean>,
+  browserTools?: BrowserToolbox,
 ) {
   const { panel, messages, typing } = fakePanel();
   const configManager = {
@@ -59,6 +63,7 @@ function setup(
       return () => undefined;
     },
     requestApproval,
+    browserTools,
   });
   const say = (text: string) => panel.addChatMessage('user', text);
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -269,5 +274,70 @@ describe('UlejraAssistant approvals', () => {
 
     const second = JSON.parse((authorizedFetch.mock.calls[1][1] as RequestInit).body as string);
     expect(second.approvals).toEqual({ c9: 'reject' });
+  });
+});
+
+describe('UlejraAssistant in the browser', () => {
+  const browserTurn = (calls: Array<{ id: string; name: string; args: Record<string, unknown> }>) => {
+    const message = {
+      role: 'assistant',
+      content: '',
+      tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })),
+    };
+    return new Response(JSON.stringify({ message, finishReason: 'tool_calls', added: [message] }), { status: 200 });
+  };
+
+  it('sends its browser tools, runs the calls, and sends the results back', async () => {
+    const call = vi.fn(async () => ({ ok: true }));
+    const authorizedFetch = vi
+      .fn()
+      .mockResolvedValueOnce(browserTurn([{ id: 'b1', name: 'browser_navigate', args: { url: 'tokopedia.com' } }]))
+      .mockResolvedValueOnce(reply('Tokopedia is open.'));
+    const { messages, say, settle } = setup(authorizedFetch, {}, vi.fn(), createBrowserToolbox(call));
+
+    say('open tokopedia');
+    await settle();
+    await settle();
+
+    const first = JSON.parse((authorizedFetch.mock.calls[0][1] as RequestInit).body as string);
+    expect(first.tools.map((t: { function: { name: string } }) => t.function.name)).toContain('browser_navigate');
+    expect(call).toHaveBeenCalledWith('POST', '/navigate', { url: 'https://tokopedia.com/' });
+    const second = JSON.parse((authorizedFetch.mock.calls[1][1] as RequestInit).body as string);
+    expect(second.messages.slice(-1)[0]).toEqual({ role: 'tool', tool_call_id: 'b1', content: 'Opened https://tokopedia.com/' });
+    expect(fromUlejra(messages).map((m) => m.text)).toEqual(['Tokopedia is open.']);
+  });
+
+  it('asks before a click and tells the model when the user declines, without clicking', async () => {
+    const call = vi.fn(async () => ({ ok: true }));
+    const requestApproval = vi.fn(async () => false);
+    const authorizedFetch = vi
+      .fn()
+      .mockResolvedValueOnce(browserTurn([{ id: 'b2', name: 'browser_click', args: { ref: '@e7', purpose: 'Press Beli' } }]))
+      .mockResolvedValueOnce(reply('OK, I did not click it.'));
+    const { say, settle } = setup(authorizedFetch, {}, requestApproval, createBrowserToolbox(call));
+
+    say('buy it');
+    await settle();
+    await settle();
+
+    expect(requestApproval).toHaveBeenCalledWith('Click: Press Beli\nElement: @e7', expect.any(AbortSignal));
+    expect(call).not.toHaveBeenCalled();
+    const second = JSON.parse((authorizedFetch.mock.calls[1][1] as RequestInit).body as string);
+    expect(JSON.parse(second.messages.slice(-1)[0].content).error).toBe('DECLINED');
+  });
+
+  it('clicks after the user approves', async () => {
+    const call = vi.fn(async () => ({ completed: true }));
+    const authorizedFetch = vi
+      .fn()
+      .mockResolvedValueOnce(browserTurn([{ id: 'b3', name: 'browser_click', args: { ref: '@e7', purpose: 'Open results' } }]))
+      .mockResolvedValueOnce(reply('Done.'));
+    const { say, settle } = setup(authorizedFetch, {}, vi.fn(async () => true), createBrowserToolbox(call));
+
+    say('show results');
+    await settle();
+    await settle();
+
+    expect(call).toHaveBeenCalledWith('POST', '/snapshot/click', { ref: '@e7' });
   });
 });

@@ -11,6 +11,7 @@ import { LoginManager } from '../auth/login-manager';
 import { GooglePhotosManager } from '../integrations/google-photos';
 import { UlejraAccount } from '../ulejra/account';
 import { UlejraAssistant } from '../ulejra/assistant';
+import { createBrowserToolbox } from '../ulejra/browserTools';
 import { ContextBridge } from '../bridge/context-bridge';
 import { buildOwnershipContextForTabId } from '../tabs/runtime-context';
 import { ClaroNoteManager } from '../claronote/manager';
@@ -255,6 +256,7 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
   runtime.taskManager = new TaskManager();
   const taskManager = runtime.taskManager;
   runtime.ulejraAssistant = new UlejraAssistant({
+    browserTools: createBrowserToolbox(),
     configManager: runtime.configManager,
     panelManager: runtime.panelManager,
     account: runtime.ulejraAccount,
