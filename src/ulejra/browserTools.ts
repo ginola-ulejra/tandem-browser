@@ -4,8 +4,8 @@ import { wrapWithSecurityContext } from '../mcp/tools/_security-context';
 /**
  * Browser tools for the Ulejra assistant: what the user's agent may do in the user's own browser,
  * through the same local API the MCP tools use (so the prompt-injection scanner, stealth and
- * scoping all apply). Reading, navigating and scrolling run straight away; clicking, filling and
- * key presses wait for the user's Approve.
+ * scoping all apply). Reading, navigating, scrolling and searching a site's own search field run
+ * straight away; clicking, filling other fields and key presses wait for the user's Approve.
  */
 
 export interface BrowserToolDefinition {
@@ -25,6 +25,30 @@ interface BrowserTool {
 
 /** Longest tool output sent to the model. */
 const MAX_OUTPUT_CHARS = 12_000;
+const MAX_QUERY_CHARS = 200;
+
+/** A snapshot line: `- searchbox "Cari di Tokopedia" [@e21] value="…"`. */
+const FIELD_LINE = /^\s*-\s*(searchbox|combobox|textbox)\s+"([^"]*)"[^\n]*?\[(@e\d+)\]/gim;
+/** Field names that mean "search", in the languages Ulejra users write in. */
+const SEARCH_NAME = /search|cari|telusur|pencarian|find|zoek|such|recherche|buscar|pesquis|cerca|搜索|検索|검색|بحث/i;
+
+export interface SearchField {
+  ref: string;
+  role: string;
+  name: string;
+}
+
+/** The search fields in a snapshot: role searchbox, or a text field whose name says search. */
+export function findSearchFields(snapshot: string): SearchField[] {
+  const fields: SearchField[] = [];
+  for (const match of snapshot.matchAll(FIELD_LINE)) {
+    const [, role, name, ref] = match;
+    if (role.toLowerCase() === 'searchbox' || SEARCH_NAME.test(name)) {
+      fields.push({ ref, role: role.toLowerCase(), name });
+    }
+  }
+  return fields;
+}
 
 const PURPOSE = {
   type: 'string',
@@ -82,6 +106,39 @@ const tool = (
 
 const TOOLS: BrowserTool[] = [
   {
+    definition: tool(
+      'browser_search',
+      'Search on the current site: types the query into the page’s own search field and presses Enter. Runs without asking the user. Use it to find products, prices or information; use browser_fill only for other fields.',
+      {
+        query: { type: 'string', description: 'What to search for' },
+        ref: { type: 'string', description: 'Optional @ref of the search field from browser_snapshot; the first search field is used otherwise' },
+      },
+      ['query'],
+    ),
+    async run(args, call) {
+      const query = str(args.query).trim();
+      if (!query || query.length > MAX_QUERY_CHARS) {
+        throw new Error(`The search needs a query of 1 to ${MAX_QUERY_CHARS} characters.`);
+      }
+      const data = (await call('GET', '/snapshot?compact=true&interactive=true')) as Record<string, unknown>;
+      if (data?.blocked === true) return clip(wrapWithSecurityContext(data, ''));
+      const fields = findSearchFields(str(data.snapshot));
+      const ref = str(args.ref);
+      const field = ref ? fields.find((f) => f.ref === ref) : fields[0];
+      if (!field) {
+        throw new Error(
+          ref
+            ? `${ref} is not a search field. To type into other fields use browser_fill (the user approves it).`
+            : 'This page has no search field. Open the site’s search page, or use browser_snapshot and browser_fill.',
+        );
+      }
+      await call('POST', '/snapshot/fill', { ref: field.ref, value: query });
+      await call('POST', '/press-key', { key: 'Enter' });
+      await call('POST', '/wait', { timeout: 10_000 }).catch(() => undefined);
+      return `Searched for "${query}" in ${field.name ? `"${field.name}"` : 'the search field'} (${field.ref}). Read the page or take a snapshot to see the results.`;
+    },
+  },
+  {
     definition: tool('browser_navigate', 'Open a web page in the user’s active tab.', { url: { type: 'string', description: 'The web address' } }, ['url']),
     async run(args, call) {
       const url = webUrl(args.url);
@@ -123,7 +180,7 @@ const TOOLS: BrowserTool[] = [
   {
     definition: tool(
       'browser_fill',
-      `Fill a field by its @ref from browser_snapshot. The user approves each fill. ${NO_SECRETS}`,
+      `Fill a field by its @ref from browser_snapshot. The user approves each fill; for a site search use browser_search instead. ${NO_SECRETS}`,
       { ref: { type: 'string', description: 'The @ref, e.g. "@e3"' }, value: { type: 'string', description: 'The text to fill in' }, purpose: PURPOSE },
       ['ref', 'value', 'purpose'],
     ),
@@ -154,7 +211,7 @@ const TOOLS: BrowserTool[] = [
   {
     definition: tool(
       'browser_press_key',
-      'Press a key in the active tab, e.g. Enter, Tab, Escape, ArrowDown. The user approves each key press (Enter can submit a form).',
+      'Press a key in the active tab, e.g. Enter, Tab, Escape, ArrowDown. The user approves each key press (Enter can submit a form); browser_search already presses Enter.',
       { key: { type: 'string', description: 'The key name' }, purpose: PURPOSE },
       ['key', 'purpose'],
     ),

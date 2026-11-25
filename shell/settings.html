@@ -84,7 +84,7 @@
       z-index: 10;
     }
     .settings-header h1 { font-size: 22px; font-weight: 600; }
-    .settings-header .logo { font-size: 28px; }
+    .settings-header .logo { width: 28px; height: 28px; border-radius: 6px; }
     .settings-header .version { font-size: 12px; color: var(--text-dim); margin-left: auto; }
 
     .settings-nav {
@@ -485,9 +485,9 @@
 <body>
 
   <div class="settings-header">
-    <span class="logo">🧀</span>
+    <img class="logo" src="ulejra-logo.png" alt="">
     <h1>Ulejra Settings</h1>
-    <span class="version">v0.67.0</span>
+    <span class="version" id="settings-version"></span>
   </div>
 
   <nav class="settings-nav" id="settings-nav">

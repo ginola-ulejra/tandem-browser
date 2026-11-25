@@ -50,6 +50,7 @@ import type { ClipboardManager } from '../clipboard/manager';
 import type { GooglePhotosManager } from '../integrations/google-photos';
 import type { UlejraAccount } from '../ulejra/account';
 import type { UlejraAssistant } from '../ulejra/assistant';
+import type { UlejraPaymentApprovals } from '../ulejra/payments';
 import type { PairingManager } from '../pairing/manager';
 import type { CloudflarePolicyManager } from '../cloudflare/policy-manager';
 
@@ -104,6 +105,7 @@ export interface RuntimeManagers {
   googlePhotosManager: GooglePhotosManager;
   ulejraAccount: UlejraAccount;
   ulejraAssistant: UlejraAssistant;
+  ulejraPayments: UlejraPaymentApprovals;
   clipboardManager: ClipboardManager;
   pairingManager: PairingManager;
   agentTrust: AgentTrustStore;

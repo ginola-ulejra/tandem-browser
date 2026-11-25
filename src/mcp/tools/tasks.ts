@@ -6,7 +6,7 @@ import { coerceShape } from '../coerce.js';
 export function registerTaskTools(server: McpServer): void {
   server.tool(
     'tandem_create_task',
-    'Create an AI task with multiple steps that can be tracked and approved by Robin',
+    'Create an AI task with multiple steps that can be tracked and approved by the user',
     coerceShape({
       description: z.string().describe('What the task is about'),
       steps: z.array(z.object({

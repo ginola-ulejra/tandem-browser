@@ -12,6 +12,8 @@ import { GooglePhotosManager } from '../integrations/google-photos';
 import { UlejraAccount } from '../ulejra/account';
 import { UlejraAssistant } from '../ulejra/assistant';
 import { createBrowserToolbox } from '../ulejra/browserTools';
+import { UlejraPaymentApprovals } from '../ulejra/payments';
+import { askWithTimeout, createApprovalPrompter } from '../ulejra/prompter';
 import { ContextBridge } from '../bridge/context-bridge';
 import { buildOwnershipContextForTabId } from '../tabs/runtime-context';
 import { ClaroNoteManager } from '../claronote/manager';
@@ -255,6 +257,18 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
   runtime.handoffManager = new HandoffManager();
   runtime.taskManager = new TaskManager();
   const taskManager = runtime.taskManager;
+  const ulejraPrompt = createApprovalPrompter(taskManager);
+  runtime.ulejraPayments = new UlejraPaymentApprovals({
+    account: runtime.ulejraAccount,
+    panelManager: runtime.panelManager,
+    prompt: ulejraPrompt,
+  });
+  runtime.ulejraPayments.start();
+  const ulejraPayments = runtime.ulejraPayments;
+  // An answer from the agent may have created a purchase that waits for approval.
+  runtime.panelManager.onChatMessage((msg) => {
+    if (msg.from === 'wingman' && msg.agentType === 'ulejra') void ulejraPayments.check();
+  });
   runtime.ulejraAssistant = new UlejraAssistant({
     browserTools: createBrowserToolbox(),
     configManager: runtime.configManager,
@@ -264,24 +278,7 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
       taskManager.on('emergency-stop', listener);
       return () => taskManager.off('emergency-stop', listener);
     },
-    requestApproval: (description, signal) => {
-      const task = taskManager.createTask(description, 'claude', 'claude', [{
-        description,
-        action: { type: 'ulejra_tool', params: {} },
-        riskLevel: 'high',
-        requiresApproval: true,
-      }]);
-      return Promise.race([
-        taskManager.requestApproval(task, 0),
-        new Promise<boolean>((resolve) => {
-          const timer = setTimeout(() => resolve(false), 5 * 60_000);
-          signal.addEventListener('abort', () => {
-            clearTimeout(timer);
-            resolve(false);
-          }, { once: true });
-        }),
-      ]);
-    },
+    requestApproval: (description, signal) => askWithTimeout(ulejraPrompt, description, signal),
   });
   runtime.agentTrust = new AgentTrustStore();
   // Load persisted T3 trusted domains from disk. Errors are logged

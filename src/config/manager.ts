@@ -119,11 +119,13 @@ export interface TandemConfig {
 const DEFAULT_QUICK_LINKS: QuickLinkConfig[] = [
   { id: 'duckduckgo', label: 'DuckDuckGo', url: 'https://duckduckgo.com' },
   { id: 'google', label: 'Google', url: 'https://google.com' },
-  { id: 'github', label: 'GitHub', url: 'https://github.com/hydro13' },
-  { id: 'x', label: 'X', url: 'https://x.com/Robin_waslander' },
-  { id: 'linkedin', label: 'LinkedIn', url: 'https://linkedin.com/in/robinwaslander' },
+  { id: 'gmail', label: 'Gmail', url: 'https://mail.google.com' },
+  { id: 'whatsapp', label: 'WhatsApp', url: 'https://web.whatsapp.com' },
   { id: 'youtube', label: 'YouTube', url: 'https://youtube.com' },
 ];
+
+/** The upstream author's personal quick links, removed from configs saved before the rebrand. */
+const UPSTREAM_PERSONAL_LINK = /github\.com\/hydro13|x\.com\/Robin_waslander|linkedin\.com\/in\/robinwaslander/i;
 
 function normalizeQuickLinkUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
@@ -350,6 +352,11 @@ export class ConfigManager {
           // New default is 0.0.0.0 (local + remote simultaneously).
           if (raw.general.apiListenHost === '127.0.0.1') {
             raw.general.apiListenHost = '0.0.0.0';
+          }
+          if (Array.isArray(raw.general.quickLinks)) {
+            raw.general.quickLinks = raw.general.quickLinks.filter(
+              (link: { url?: unknown }) => !(typeof link?.url === 'string' && UPSTREAM_PERSONAL_LINK.test(link.url)),
+            );
           }
           delete raw.general.keesPanelPosition;
           delete raw.general.keesPanelDefaultOpen;

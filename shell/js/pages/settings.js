@@ -1,4 +1,6 @@
 const API = window.tandemApi?.baseUrl() || window.__TANDEM_API_BASE__ || 'http://127.0.0.1:8765';
+const settingsVersionEl = document.getElementById('settings-version');
+if (settingsVersionEl && window.__TANDEM_VERSION__) settingsVersionEl.textContent = `v${window.__TANDEM_VERSION__}`;
 const quickLinksList = document.getElementById('cfg-quickLinks');
 let googlePhotosStatus = {};
 

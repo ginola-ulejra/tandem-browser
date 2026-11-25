@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBrowserToolbox, webUrl } from '../browserTools';
+import { createBrowserToolbox, findSearchFields, webUrl } from '../browserTools';
 
 vi.mock('../../mcp/api-client', () => ({
   apiCall: vi.fn(),
@@ -75,5 +75,47 @@ describe('browser toolbox', () => {
     const call = vi.fn(async () => ({ snapshot: '@e1 button "Cari"' }));
     await createBrowserToolbox(call).run('browser_snapshot', {});
     expect(call).toHaveBeenCalledWith('GET', '/snapshot?compact=true&interactive=true');
+  });
+});
+
+describe('browser_search', () => {
+  const page = [
+    '- RootWebArea "Tokopedia" [@e1]',
+    '  - link "Promo" [@e15]',
+    '  - searchbox "Cari di Tokopedia" [@e21]',
+    '  - textbox "Alamat pengiriman" [@e30]',
+    '  - textbox "Search orders" [@e31]',
+  ].join('\n');
+
+  it('finds search fields by role or by a search-like name, never other fields', () => {
+    expect(findSearchFields(page)).toEqual([
+      { ref: '@e21', role: 'searchbox', name: 'Cari di Tokopedia' },
+      { ref: '@e31', role: 'textbox', name: 'Search orders' },
+    ]);
+  });
+
+  it('types into the search field and presses Enter without asking the user', async () => {
+    const call = vi.fn(async (_method: string, endpoint: string) => (endpoint.startsWith('/snapshot?') ? { snapshot: page } : { ok: true }));
+    const box = createBrowserToolbox(call);
+    expect(box.approvalFor('browser_search', { query: 'beras 5 kg' })).toBeNull();
+
+    const result = await box.run('browser_search', { query: 'beras 5 kg' });
+
+    expect(call).toHaveBeenCalledWith('POST', '/snapshot/fill', { ref: '@e21', value: 'beras 5 kg' });
+    expect(call).toHaveBeenCalledWith('POST', '/press-key', { key: 'Enter' });
+    expect(result).toContain('Searched for "beras 5 kg" in "Cari di Tokopedia"');
+  });
+
+  it('refuses to type into a field that is not a search field', async () => {
+    const call = vi.fn(async () => ({ snapshot: page }));
+    const result = JSON.parse(await createBrowserToolbox(call).run('browser_search', { query: 'Jl. Sudirman 1', ref: '@e30' }));
+    expect(result.message).toContain('@e30 is not a search field');
+    expect(call).toHaveBeenCalledTimes(1);
+  });
+
+  it('says so when the page has no search field', async () => {
+    const call = vi.fn(async () => ({ snapshot: '- link "Home" [@e1]' }));
+    const result = JSON.parse(await createBrowserToolbox(call).run('browser_search', { query: 'beras' }));
+    expect(result.message).toContain('no search field');
   });
 });

@@ -5,9 +5,8 @@ const editQuickLinksButton = document.getElementById('edit-quick-links');
 const fallbackQuickLinks = [
   { label: 'DuckDuckGo', url: 'https://duckduckgo.com' },
   { label: 'Google', url: 'https://google.com' },
-  { label: 'GitHub', url: 'https://github.com/hydro13' },
-  { label: 'X', url: 'https://x.com/Robin_waslander' },
-  { label: 'LinkedIn', url: 'https://linkedin.com/in/robinwaslander' },
+  { label: 'Gmail', url: 'https://mail.google.com' },
+  { label: 'WhatsApp', url: 'https://web.whatsapp.com' },
   { label: 'YouTube', url: 'https://youtube.com' },
 ];
 

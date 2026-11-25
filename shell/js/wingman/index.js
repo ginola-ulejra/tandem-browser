@@ -666,9 +666,12 @@
         const riskClass = data.riskLevel === 'high' ? 'risk-high' : 'risk-medium';
         const riskLabel = data.riskLevel === 'high' ? 'High risk' : 'Medium risk';
         // Ulejra actions carry their own readable description; others show the raw action.
-        const isUlejra = data.action?.type === 'ulejra_tool';
+        const isUlejra = data.action?.type === 'ulejra_tool' || data.action?.type === 'ulejra_payment';
+        const isPayment = data.action?.type === 'ulejra_payment';
         const actionDesc = data.action && !isUlejra ? `${data.action.type}: ${JSON.stringify(data.action.params || {}).slice(0, 80)}` : '';
-        const title = isUlejra ? '🤖 Ulejra wants to do this for you:' : '🤖 Wingman wants to perform an action:';
+        const title = isPayment
+          ? '💳 Payment approval: only you can approve this'
+          : isUlejra ? '🤖 Ulejra wants to do this for you:' : '🤖 Wingman wants to perform an action:';
 
         card.innerHTML = `
           <div class="approval-title">${title}</div>

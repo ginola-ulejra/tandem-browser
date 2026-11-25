@@ -10,7 +10,7 @@ export function setMainWindow(win: BrowserWindow | null): void {
 
 export function wingmanAlert(title: string, body: string): void {
   if (Notification.isSupported()) {
-    new Notification({ title: `🧀 ${title}`, body }).show();
+    new Notification({ title, body }).show();
   }
   mainWindow?.webContents.send(IpcChannels.WINGMAN_ALERT, { title, body });
 }
