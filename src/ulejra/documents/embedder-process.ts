@@ -1,4 +1,4 @@
-import { ocrPdfPages, stopOcr } from './ocr';
+import { ocrImageFile, ocrPdfPages, stopOcr } from './ocr';
 
 /**
  * Child process for the heavy local work on the user's documents, on this computer: embeddings
@@ -7,6 +7,7 @@ import { ocrPdfPages, stopOcr } from './ocr';
  *
  * Messages in:  { id, texts }                    -> out: { id, vectors: number[][] } | { id, error }
  *               { id, op: 'ocr', path, pages }   -> out: { id, pages: { [page]: text } } | { id, error }
+ *               { id, op: 'ocr-image', path }    -> out: { id, text } | { id, error }
  * Messages out: { type: 'progress', loaded, total } while the model downloads (first use only),
  *               { type: 'ready' } once the model is loaded,
  *               { type: 'ocr-progress', id, done, total } after each recognized page.
@@ -73,6 +74,16 @@ port.on('message', (raw) => {
   const message = raw as { id?: number; texts?: unknown; op?: string; path?: unknown; pages?: unknown };
   if (typeof message?.id !== 'number') return;
   const { id } = message;
+  if (message.op === 'ocr-image') {
+    void (async () => {
+      try {
+        port.postMessage({ id, text: await ocrImageFile(String(message.path), ocrCacheDir) });
+      } catch (error) {
+        port.postMessage({ id, error: error instanceof Error ? error.message : String(error) });
+      }
+    })();
+    return;
+  }
   if (message.op === 'ocr') {
     void (async () => {
       try {

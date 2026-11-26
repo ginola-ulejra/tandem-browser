@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { createLogger } from '../../utils/logger';
 import type { Embedder, EmbedderState, PdfOcr } from './embedder';
-import { chunkText, extractText, isSupportedFile, MAX_FILE_BYTES, type ExtractedText } from './extract';
+import { chunkText, extractText, isImageFile, isSupportedFile, MAX_FILE_BYTES, type ExtractedText } from './extract';
 import type { DocumentStore, SourceKind, SourceSummary } from './store';
 
 const log = createLogger('UlejraDocuments');
@@ -37,7 +37,10 @@ export interface DocumentSearchResult {
 
 export interface DocumentLibraryStatus {
   sources: Array<
-    Pick<SourceSummary, 'id' | 'path' | 'kind' | 'documents' | 'ready' | 'pending' | 'errors' | 'firstError'> & {
+    Pick<
+      SourceSummary,
+      'id' | 'path' | 'kind' | 'documents' | 'ready' | 'pending' | 'errors' | 'noText' | 'includeImages' | 'firstError'
+    > & {
       name: string;
     }
   >;
@@ -89,7 +92,7 @@ export class DocumentLibrary {
       const stat = await fs.stat(target).catch(() => null);
       if (stat?.isDirectory()) {
         const source = this.store.addSource(target, 'folder', this.now());
-        await this.scanFolder(source.id, target);
+        await this.scanFolder(source.id, target, source.includeImages);
         added++;
       } else if (stat?.isFile() && isSupportedFile(target)) {
         const source = this.store.addSource(target, 'file', this.now());
@@ -113,7 +116,7 @@ export class DocumentLibrary {
   async refresh(): Promise<void> {
     for (const source of this.store.listSources()) {
       if (source.kind === 'folder') {
-        await this.scanFolder(source.id, source.path);
+        await this.scanFolder(source.id, source.path, source.includeImages);
       } else {
         const stat = await fs.stat(source.path).catch(() => null);
         if (stat?.isFile()) {
@@ -130,6 +133,18 @@ export class DocumentLibrary {
       }
     }
     this.kick();
+  }
+
+  /**
+   * Whether a folder's photos are read too. Off by default, so a folder of holiday pictures is not
+   * run through text recognition by accident. Returns false for an unknown id or a file.
+   */
+  async setIncludeImages(sourceId: number, include: boolean): Promise<boolean> {
+    const source = this.store.getSource(sourceId);
+    if (!source || source.kind !== 'folder' || !this.store.setIncludeImages(sourceId, include)) return false;
+    await this.scanFolder(source.id, source.path, include);
+    this.kick();
+    return true;
   }
 
   remove(sourceId: number): boolean {
@@ -151,6 +166,8 @@ export class DocumentLibrary {
         ready: source.ready,
         pending: source.pending,
         errors: source.errors,
+        noText: source.noText,
+        includeImages: source.includeImages,
         firstError: source.firstError,
       })),
       totals: this.store.counts(),
@@ -207,7 +224,8 @@ export class DocumentLibrary {
     while (this.working) await this.working;
   }
 
-  private async scanFolder(sourceId: number, root: string): Promise<void> {
+  /** Finds the folder's documents (and photos when `includeImages`); forgets files no longer found. */
+  private async scanFolder(sourceId: number, root: string, includeImages: boolean): Promise<void> {
     const found = new Set<string>();
     const walk = async (dir: string, depth: number): Promise<void> => {
       if (depth > MAX_DEPTH || found.size >= MAX_FILES_PER_FOLDER) return;
@@ -218,7 +236,7 @@ export class DocumentLibrary {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
           if (!SKIPPED_DIRS.has(entry.name)) await walk(full, depth + 1);
-        } else if (entry.isFile() && isSupportedFile(full)) {
+        } else if (entry.isFile() && isSupportedFile(full) && (includeImages || !isImageFile(full))) {
           const stat = await fs.stat(full).catch(() => null);
           if (!stat || stat.size > MAX_FILE_BYTES) continue;
           found.add(full);
@@ -270,6 +288,12 @@ export class DocumentLibrary {
   private async readPending(): Promise<void> {
     for (let doc = this.store.takePending(); doc; doc = this.store.takePending()) {
       try {
+        if (isImageFile(doc.path)) {
+          // A photo has no text layer: it goes straight to text recognition.
+          if (this.ocr) this.store.saveChunks(doc.id, [], 'ocr');
+          else this.store.markError(doc.id, 'Photos are read with text recognition, which is not available.');
+          continue;
+        }
         const isPdf = path.extname(doc.path).toLowerCase() === '.pdf';
         const extracted = await extractText(doc.path);
         const chunks = chunkText(extracted, isPdf);
@@ -311,8 +335,33 @@ export class DocumentLibrary {
     }
   }
 
+  /** Reads a photo with text recognition. One without legible text is not an error. */
+  private async recognizePhoto(doc: { id: number; path: string; name: string }): Promise<void> {
+    this.ocrProgress = { name: doc.name, done: 0, total: 1 };
+    try {
+      const text = await this.ocr!.ocrImage(doc.path);
+      const chunks = text ? chunkText({ pages: [text] }, false) : [];
+      if (chunks.length === 0) {
+        this.store.saveChunks(doc.id, []);
+        this.store.setStatus(doc.id, 'no-text');
+      } else {
+        this.store.saveChunks(doc.id, chunks);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.warn(`Text recognition failed for ${doc.name}:`, message);
+      this.store.markError(doc.id, `Text recognition failed: ${message}`);
+    } finally {
+      this.ocrProgress = null;
+    }
+  }
+
   /** Reads a PDF's scanned pages with text recognition and indexes the whole document again. */
   private async recognize(doc: { id: number; path: string; name: string; chunkCount: number }): Promise<void> {
+    if (isImageFile(doc.path)) {
+      await this.recognizePhoto(doc);
+      return;
+    }
     try {
       const extracted = await extractText(doc.path);
       const pages = this.scannedPages(extracted);

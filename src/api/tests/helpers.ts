@@ -178,6 +178,7 @@ export function createMockContext(): RouteContext {
       add: vi.fn().mockResolvedValue({ added: 0, skipped: [] }),
       refresh: vi.fn().mockResolvedValue(undefined),
       remove: vi.fn().mockReturnValue(true),
+      setIncludeImages: vi.fn().mockResolvedValue(true),
       search: vi.fn().mockResolvedValue([]),
       hasDocuments: vi.fn().mockReturnValue(false),
     } as any,

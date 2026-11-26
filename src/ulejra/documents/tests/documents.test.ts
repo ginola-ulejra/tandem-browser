@@ -95,8 +95,16 @@ class FakeEmbedder implements Embedder {
 /** Stands in for Tesseract: returns the text set for a page, or fails. */
 class FakeOcr implements PdfOcr {
   pagesText: Record<number, string> = {};
+  /** Text per photo file name. */
+  photos: Record<string, string> = {};
   fail = false;
   calls: Array<{ file: string; pages: number[] }> = [];
+  photoCalls: string[] = [];
+  async ocrImage(file: string) {
+    this.photoCalls.push(path.basename(file));
+    if (this.fail) throw new Error('language data could not be downloaded');
+    return this.photos[path.basename(file)] ?? '';
+  }
   async ocrPdf(file: string, pages: number[], onPage?: (done: number, total: number) => void) {
     this.calls.push({ file: path.basename(file), pages });
     if (this.fail) throw new Error('language data could not be downloaded');
@@ -142,8 +150,10 @@ describe('reading documents', () => {
     expect(pdf.pages[0]).toContain('INV-118');
   });
 
-  it('refuses other file types', async () => {
+  it('refuses other file types (photos go to text recognition instead)', async () => {
+    fs.writeFileSync(docPath('arsip.zip'), 'x');
     fs.writeFileSync(docPath('photo.jpg'), 'x');
+    await expect(extractText(docPath('arsip.zip'))).rejects.toThrow(/not supported/);
     await expect(extractText(docPath('photo.jpg'))).rejects.toThrow(/not supported/);
   });
 
@@ -162,6 +172,8 @@ describe('reading documents', () => {
 
   it('turns a question into a safe keyword query', () => {
     expect(toFtsQuery('Kapan toko "buka"? OR NOT *')).toBe('"kapan"* OR "toko"* OR "buka"* OR "or"* OR "not"*');
+    expect(toFtsQuery('berapa kembalian')).toBe('"berapa"* OR "kembalian"* OR "kembali"*');
+    expect(toFtsQuery('tagihannya refunds')).toBe('"tagihannya"* OR "tagihan"* OR "refunds"* OR "refund"*');
     expect(toFtsQuery('?!')).toBeNull();
   });
 });
@@ -227,10 +239,11 @@ describe('My Documents library', () => {
   });
 
   it('adds single files, skips unsupported ones, and forgets what is removed', async () => {
-    const result = await library.add([docPath('kebijakan.txt'), docPath('photo.jpg'), docPath('missing.txt')]);
+    fs.writeFileSync(docPath('arsip.zip'), 'x');
+    const result = await library.add([docPath('kebijakan.txt'), docPath('arsip.zip'), docPath('missing.txt')]);
     await library.idle();
     expect(result.added).toBe(1);
-    expect(result.skipped).toEqual([docPath('photo.jpg'), docPath('missing.txt')]);
+    expect(result.skipped).toEqual([docPath('arsip.zip'), docPath('missing.txt')]);
     const [source] = library.status().sources;
     expect(source).toMatchObject({ kind: 'file', name: 'kebijakan.txt', ready: 1 });
     expect(library.remove(source.id)).toBe(true);
@@ -353,5 +366,85 @@ describe('scanned PDFs (text recognition)', () => {
     expect(library.status().sources[0].firstError).toBe(
       'scan.pdf: No text found (a scanned PDF needs text recognition, which is not available).',
     );
+  });
+});
+
+describe('photos of documents (text recognition)', () => {
+  let ocr: FakeOcr;
+  let withOcr: DocumentLibrary;
+
+  beforeEach(() => {
+    ocr = new FakeOcr();
+    withOcr = new DocumentLibrary({ store: new DocumentStore(path.join(dir, 'photos.db')), embedder, ocr });
+    fs.mkdirSync(docPath('foto'), { recursive: true });
+    fs.writeFileSync(docPath('foto', 'struk.jpg'), 'jpeg bytes');
+    fs.writeFileSync(docPath('foto', 'liburan.png'), 'png bytes');
+    fs.writeFileSync(docPath('foto', 'catatan.txt'), 'Catatan rapat: anggaran pemasaran naik sepuluh persen.');
+    ocr.photos = { 'struk.jpg': 'Struk belanja Toko Sinar total Rp 87.500 tanggal 20 November.' };
+  });
+
+  afterEach(() => withOcr.dispose());
+
+  it('reads a photo added on its own', async () => {
+    await withOcr.add([docPath('foto', 'struk.jpg')]);
+    await withOcr.idle();
+    expect(ocr.photoCalls).toEqual(['struk.jpg']);
+    expect(withOcr.status().sources[0]).toMatchObject({ kind: 'file', ready: 1 });
+    expect((await withOcr.search('total struk belanja'))[0]).toMatchObject({ name: 'struk.jpg', page: null });
+  });
+
+  it('leaves a folder’s photos out until the user turns them on, and drops them when turned off', async () => {
+    await withOcr.add([docPath('foto')]);
+    await withOcr.idle();
+    let [source] = withOcr.status().sources;
+    expect(source).toMatchObject({ includeImages: false, documents: 1, ready: 1 });
+    expect(ocr.photoCalls).toEqual([]);
+
+    expect(await withOcr.setIncludeImages(source.id, true)).toBe(true);
+    await withOcr.idle();
+    [source] = withOcr.status().sources;
+    expect(source).toMatchObject({ includeImages: true, documents: 3, ready: 2, noText: 1, errors: 0 });
+    expect(ocr.photoCalls.sort()).toEqual(['liburan.png', 'struk.jpg']);
+    expect((await withOcr.search('struk belanja'))[0].name).toBe('struk.jpg');
+
+    await withOcr.setIncludeImages(source.id, false);
+    await withOcr.idle();
+    expect(withOcr.status().sources[0]).toMatchObject({ includeImages: false, documents: 1, noText: 0 });
+    expect((await withOcr.search('struk belanja')).map((r) => r.name)).not.toContain('struk.jpg');
+  });
+
+  it('only folders have the photo option', async () => {
+    await withOcr.add([docPath('foto', 'catatan.txt')]);
+    const [source] = withOcr.status().sources;
+    expect(await withOcr.setIncludeImages(source.id, true)).toBe(false);
+    expect(await withOcr.setIncludeImages(999, true)).toBe(false);
+  });
+
+  it('reports a photo it could not read', async () => {
+    ocr.fail = true;
+    await withOcr.add([docPath('foto', 'struk.jpg')]);
+    await withOcr.idle();
+    expect(withOcr.status().sources[0].firstError).toBe(
+      'struk.jpg: Text recognition failed: language data could not be downloaded',
+    );
+  });
+
+  it('without text recognition, a photo is reported as unreadable', async () => {
+    await library.add([docPath('foto', 'struk.jpg')]);
+    await library.idle();
+    expect(library.status().sources[0].firstError).toBe(
+      'struk.jpg: Photos are read with text recognition, which is not available.',
+    );
+  });
+
+  it('keeps the photo option of an index made before photos were supported', () => {
+    const legacy = path.join(dir, 'legacy.db');
+    const old = new (require('better-sqlite3'))(legacy);
+    old.exec(`CREATE TABLE sources (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, kind TEXT NOT NULL, added_at INTEGER NOT NULL);
+              INSERT INTO sources (path, kind, added_at) VALUES ('/old/folder', 'folder', 1);`);
+    old.close();
+    const migrated = new DocumentStore(legacy);
+    expect(migrated.listSources()).toEqual([{ id: 1, path: '/old/folder', kind: 'folder', addedAt: 1, includeImages: false }]);
+    migrated.close();
   });
 });

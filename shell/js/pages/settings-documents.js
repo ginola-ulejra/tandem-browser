@@ -30,6 +30,9 @@
     } else if (source.ready) {
       parts.push('Ready');
     }
+    if (source.noText) {
+      parts.push(`${source.noText} ${source.noText === 1 ? 'photo' : 'photos'} without text`);
+    }
     if (source.errors) parts.push(`${source.errors} could not be read`);
     if (source.documents === 0) parts.push('No supported files found');
     return parts.join(' · ');
@@ -77,6 +80,14 @@
             <div class="field-desc documents-path" title="${esc(source.path)}">${esc(source.path)}</div>
             <div class="field-desc">${esc(sourceLine(source))}</div>
             ${source.firstError ? `<div class="field-desc documents-error">${esc(source.firstError)}</div>` : ''}
+            ${
+              source.kind === 'folder'
+                ? `<label class="field-desc documents-photos">
+                    <input type="checkbox" data-include-images="${source.id}" ${source.includeImages ? 'checked' : ''}>
+                    Read photos in this folder (JPG, PNG, HEIC…) with text recognition
+                  </label>`
+                : ''
+            }
           </div>
           <button class="btn btn-sm btn-secondary" type="button" data-remove-source="${source.id}">Remove</button>
         </div>`,
@@ -134,6 +145,20 @@
       toast(error.message);
     } finally {
       button.disabled = false;
+    }
+  });
+  document.getElementById('documents-list')?.addEventListener('change', async (e) => {
+    const box = e.target.closest('[data-include-images]');
+    if (!box) return;
+    box.disabled = true;
+    try {
+      render(await call('PATCH', `/sources/${box.dataset.includeImages}`, { includeImages: box.checked }));
+      toast(box.checked ? 'Reading the photos in this folder' : 'Photos in this folder are no longer searched');
+    } catch (error) {
+      box.checked = !box.checked;
+      toast(error.message);
+    } finally {
+      box.disabled = false;
     }
   });
   document.getElementById('documents-list')?.addEventListener('click', async (e) => {

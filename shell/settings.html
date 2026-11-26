@@ -239,6 +239,7 @@
     .documents-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; }
     .documents-error { color: var(--danger); }
     .documents-model { margin: 4px 0 12px; }
+    .documents-photos { display: flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer; }
     .ulejra-auth-field .uaf { max-width: 420px; }
 
     .field-stack {
@@ -566,7 +567,7 @@
     <!-- ═══ My Documents ═══ -->
     <div class="section" id="documents">
       <h2>📄 My Documents</h2>
-      <p class="section-desc">Files and folders your Ulejra assistant can search when you ask about them. They are read and indexed on this computer and never uploaded; when a question needs them, only the matching passages are sent with your question. PDF (scanned pages are read with text recognition, in Indonesian and English), Word, text, Markdown, CSV and JSON.</p>
+      <p class="section-desc">Files and folders your Ulejra assistant can search when you ask about them. They are read and indexed on this computer and never uploaded; when a question needs them, only the matching passages are sent with your question. PDF (scanned pages are read with text recognition, in Indonesian and English), Word, text, Markdown, CSV, JSON, and photos of documents (JPG, PNG, WEBP, TIFF, HEIC). Photos inside a folder are read only if you turn that on for the folder.</p>
 
       <div class="field">
         <div class="field-info">

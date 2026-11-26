@@ -102,7 +102,14 @@ export function registerUlejraRoutes(router: Router, ctx: RouteContext): void {
         title: kind === 'folder' ? 'Add a folder to My Documents' : 'Add files to My Documents',
         properties: kind === 'folder' ? ['openDirectory'] : ['openFile', 'multiSelections'],
         ...(kind === 'files'
-          ? { filters: [{ name: 'Documents', extensions: ['pdf', 'docx', 'txt', 'md', 'markdown', 'csv', 'json'] }] }
+          ? {
+              filters: [
+                {
+                  name: 'Documents and photos',
+                  extensions: ['pdf', 'docx', 'txt', 'md', 'markdown', 'csv', 'json', 'jpg', 'jpeg', 'png', 'webp', 'tif', 'tiff', 'heic', 'heif'],
+                },
+              ],
+            }
           : {}),
       });
       if (picked.canceled || picked.filePaths.length === 0) {
@@ -120,6 +127,25 @@ export function registerUlejraRoutes(router: Router, ctx: RouteContext): void {
     if (!documentsAllowed(res)) return;
     try {
       await ctx.ulejraDocuments.refresh();
+      res.json({ ok: true, ...ctx.ulejraDocuments.status() });
+    } catch (e) {
+      handleRouteError(res, e);
+    }
+  });
+
+  /** A folder's photos: { includeImages: boolean }. */
+  router.patch('/integrations/ulejra/documents/sources/:id', async (req: Request, res: Response) => {
+    if (!documentsAllowed(res)) return;
+    try {
+      const id = Number(req.params.id);
+      if (typeof req.body?.includeImages !== 'boolean') {
+        res.status(400).json({ ok: false, error: 'includeImages must be true or false.' });
+        return;
+      }
+      if (!Number.isInteger(id) || !(await ctx.ulejraDocuments.setIncludeImages(id, req.body.includeImages))) {
+        res.status(404).json({ ok: false, error: 'No such folder.' });
+        return;
+      }
       res.json({ ok: true, ...ctx.ulejraDocuments.status() });
     } catch (e) {
       handleRouteError(res, e);

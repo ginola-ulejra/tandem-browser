@@ -44,6 +44,8 @@ export interface Embedder {
 export interface PdfOcr {
   /** Recognized text of the given 1-based pages ('' for a page without a scanned image). */
   ocrPdf(filePath: string, pages: number[], onPage?: (done: number, total: number) => void): Promise<Record<number, string>>;
+  /** Recognized text of a photo of a document; '' when it holds no legible text. */
+  ocrImage(filePath: string): Promise<string>;
 }
 
 interface Child {
@@ -140,6 +142,11 @@ export class ProcessEmbedder implements Embedder, PdfOcr {
     if (pages.length === 0) return {};
     const reply = await this.request({ op: 'ocr', path: filePath, pages }, OCR_PAGE_TIMEOUT_MS, onPage);
     return (reply.pages as Record<number, string> | undefined) ?? {};
+  }
+
+  async ocrImage(filePath: string): Promise<string> {
+    const reply = await this.request({ op: 'ocr-image', path: filePath }, OCR_PAGE_TIMEOUT_MS);
+    return typeof reply.text === 'string' ? reply.text : '';
   }
 
   dispose(): void {

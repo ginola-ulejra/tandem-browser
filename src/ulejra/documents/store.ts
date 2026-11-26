@@ -7,14 +7,19 @@ import type { TextChunk } from './extract';
  */
 
 export type SourceKind = 'file' | 'folder';
-/** pending → indexing → ready | error | ocr (scanned pages wait for text recognition) → ocr-running → ready | error */
-export type DocumentStatus = 'pending' | 'indexing' | 'ready' | 'error' | 'ocr' | 'ocr-running';
+/**
+ * pending → indexing → ready | error | ocr (scanned pages and photos wait for text recognition)
+ * → ocr-running → ready | error | no-text (a photo without legible text: not an error).
+ */
+export type DocumentStatus = 'pending' | 'indexing' | 'ready' | 'error' | 'ocr' | 'ocr-running' | 'no-text';
 
 export interface SourceRow {
   id: number;
   path: string;
   kind: SourceKind;
   addedAt: number;
+  /** For a folder: whether its photos are read too (off unless the user turns it on). */
+  includeImages: boolean;
 }
 
 export interface DocumentRow {
@@ -44,6 +49,8 @@ export interface SourceSummary extends SourceRow {
   ready: number;
   pending: number;
   errors: number;
+  /** Photos in which text recognition found no text. */
+  noText: number;
   chunks: number;
   embedded: number;
   /** The first error message, for a file source or the first failing file of a folder. */
@@ -90,10 +97,31 @@ CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
 END;
 `;
 
-/** Words of a free-text query as an FTS5 expression: any word may match, best matches first. */
+/** Indonesian suffixes (and the English plural) cut off a query word, longest first. */
+const SUFFIXES = ['nya', 'kan', 'lah', 'kah', 'an', 'i', 's'];
+const MIN_STEM = 4;
+
+/** The word without one common suffix, so "kembalian" also finds "kembali"; null if none applies. */
+export function stem(word: string): string | null {
+  for (const suffix of SUFFIXES) {
+    if (word.length - suffix.length >= MIN_STEM && word.endsWith(suffix)) return word.slice(0, -suffix.length);
+  }
+  return null;
+}
+
+/**
+ * Words of a free-text query as an FTS5 expression: any word, or its stem, may start a word in the
+ * text; BM25 ranks the best matches first.
+ */
 export function toFtsQuery(query: string): string | null {
   const words = query.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) ?? [];
-  const unique = [...new Set(words)].slice(0, 24);
+  const terms = new Set<string>();
+  for (const word of words) {
+    terms.add(word);
+    const root = stem(word);
+    if (root) terms.add(root);
+  }
+  const unique = [...terms].slice(0, 32);
   if (unique.length === 0) return null;
   return unique.map((word) => `"${word}"*`).join(' OR ');
 }
@@ -118,6 +146,10 @@ export class DocumentStore {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
     this.db.exec(SCHEMA);
+    const columns = this.db.prepare(`PRAGMA table_info(sources)`).all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === 'include_images')) {
+      this.db.exec(`ALTER TABLE sources ADD COLUMN include_images INTEGER NOT NULL DEFAULT 0`);
+    }
   }
 
   close(): void {
@@ -144,6 +176,10 @@ export class DocumentStore {
       .prepare(`INSERT INTO sources (path, kind, added_at) VALUES (?, ?, ?) ON CONFLICT(path) DO NOTHING`)
       .run(sourcePath, kind, now);
     return this.toSource(this.db.prepare(`SELECT * FROM sources WHERE path = ?`).get(sourcePath));
+  }
+
+  setIncludeImages(id: number, include: boolean): boolean {
+    return this.db.prepare(`UPDATE sources SET include_images = ? WHERE id = ? AND kind = 'folder'`).run(include ? 1 : 0, id).changes > 0;
   }
 
   getSource(id: number): SourceRow | null {
@@ -173,6 +209,7 @@ export class DocumentStore {
            SUM(d.status = 'ready') AS ready,
            SUM(d.status IN ('pending', 'indexing', 'ocr', 'ocr-running')) AS pending,
            SUM(d.status = 'error') AS errors,
+           SUM(d.status = 'no-text') AS no_text,
            COALESCE(SUM(d.chunk_count), 0) AS chunks,
            (SELECT COUNT(*) FROM chunks c JOIN documents d2 ON d2.id = c.document_id
               WHERE d2.source_id = s.id AND c.embedding IS NOT NULL) AS embedded,
@@ -188,6 +225,7 @@ export class DocumentStore {
       ready: Number(row.ready ?? 0),
       pending: Number(row.pending ?? 0),
       errors: Number(row.errors ?? 0),
+      noText: Number(row.no_text ?? 0),
       chunks: Number(row.chunks ?? 0),
       embedded: Number(row.embedded ?? 0),
       firstError: (row.first_error as string | null) ?? null,
@@ -390,7 +428,13 @@ export class DocumentStore {
 
   private toSource(row: unknown): SourceRow {
     const r = row as Record<string, unknown>;
-    return { id: Number(r.id), path: String(r.path), kind: r.kind as SourceKind, addedAt: Number(r.added_at) };
+    return {
+      id: Number(r.id),
+      path: String(r.path),
+      kind: r.kind as SourceKind,
+      addedAt: Number(r.added_at),
+      includeImages: Number(r.include_images ?? 0) === 1,
+    };
   }
 
   private toDocument(row: unknown): DocumentRow {

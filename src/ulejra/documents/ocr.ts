@@ -1,10 +1,15 @@
+import { execFile } from 'child_process';
 import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import { promisify } from 'util';
 import type sharpModule from 'sharp';
 
 /**
- * Text recognition (OCR) for scanned PDF pages, on this computer: the page's scanned image is taken
- * out of the PDF (unpdf), cleaned up (sharp) and read by Tesseract (tesseract.js, WebAssembly) in
- * Indonesian and English. The language data (~7 MB) is downloaded once into the cache folder.
+ * Text recognition (OCR) for scanned PDF pages and photos of documents, on this computer: the image
+ * (taken out of the PDF with unpdf, or the photo itself) is cleaned up (sharp) and read by
+ * Tesseract (tesseract.js, WebAssembly) in Indonesian and English. The language data (~7 MB) is
+ * downloaded once into the cache folder.
  *
  * Runs inside the model process (embedder-process.ts), never in the app's main process.
  */
@@ -120,4 +125,40 @@ export async function ocrPdfPages(
     await Promise.resolve(pdf.destroy?.()).catch(() => undefined);
   }
   return result;
+}
+
+/** Less legible text than this in a photo means it is not a photo of a document. */
+const MIN_PHOTO_CHARS = 20;
+
+/**
+ * An iPhone HEIC photo as JPEG. sharp's prebuilt libvips cannot decode HEVC, but macOS can (sips).
+ */
+async function heicToJpeg(filePath: string): Promise<{ file: string; cleanup: () => Promise<void> }> {
+  if (process.platform !== 'darwin') {
+    throw new Error('HEIC photos can only be read on macOS; save the photo as JPEG instead.');
+  }
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ulejra-heic-'));
+  const file = path.join(dir, 'photo.jpg');
+  await promisify(execFile)('/usr/bin/sips', ['-s', 'format', 'jpeg', filePath, '--out', file], { timeout: 60_000 });
+  return { file, cleanup: () => fs.rm(dir, { recursive: true, force: true }) };
+}
+
+/** Recognized text of a photo of a document; '' when it holds no legible text. */
+export async function ocrImageFile(filePath: string, cacheDir: string): Promise<string> {
+  const sharp = ((await import(SHARP)) as { default: typeof sharpModule }).default;
+  const isHeic = /\.hei[cf]$/i.test(filePath);
+  const source = isHeic ? await heicToJpeg(filePath) : { file: filePath, cleanup: async () => undefined };
+  try {
+    // rotate() turns the photo upright from its EXIF orientation (phones store it sideways).
+    let pipeline = sharp(source.file, { failOn: 'none' }).rotate().grayscale();
+    const { width = 0 } = await sharp(source.file, { failOn: 'none' }).rotate().metadata();
+    if (width > MAX_WIDTH) pipeline = pipeline.resize({ width: MAX_WIDTH });
+    else if (width > 0 && width < TARGET_WIDTH) pipeline = pipeline.resize({ width: TARGET_WIDTH });
+    const image = await pipeline.normalize().png().toBuffer();
+    const { data } = await (await getWorker(cacheDir)).recognize(image);
+    const text = data.text.trim();
+    return data.confidence >= 30 && text.replace(/\s+/g, '').length >= MIN_PHOTO_CHARS ? text : '';
+  } finally {
+    await source.cleanup();
+  }
 }

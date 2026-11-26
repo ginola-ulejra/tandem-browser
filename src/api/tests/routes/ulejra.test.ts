@@ -137,6 +137,15 @@ describe('Ulejra account routes', () => {
       expect((await request(app).delete('/integrations/ulejra/documents/sources/abc')).status).toBe(404);
     });
 
+    it('turns a folder’s photos on and off', async () => {
+      const res = await request(app).patch('/integrations/ulejra/documents/sources/4').send({ includeImages: true });
+      expect(res.status).toBe(200);
+      expect(ctx.ulejraDocuments.setIncludeImages).toHaveBeenCalledWith(4, true);
+      expect((await request(app).patch('/integrations/ulejra/documents/sources/4').send({ includeImages: 'yes' })).status).toBe(400);
+      vi.mocked(ctx.ulejraDocuments.setIncludeImages).mockResolvedValueOnce(false);
+      expect((await request(app).patch('/integrations/ulejra/documents/sources/5').send({ includeImages: false })).status).toBe(404);
+    });
+
     it('offers no search route, and refuses paired remote agents', async () => {
       expect((await request(app).post('/integrations/ulejra/documents/search').send({ query: 'x' })).status).toBe(404);
       const remote = express();
@@ -153,6 +162,7 @@ describe('Ulejra account routes', () => {
         request(remote).post('/integrations/ulejra/documents/add').send({ kind: 'files' }),
         request(remote).post('/integrations/ulejra/documents/refresh'),
         request(remote).delete('/integrations/ulejra/documents/sources/1'),
+        request(remote).patch('/integrations/ulejra/documents/sources/1').send({ includeImages: true }),
       ]) {
         expect((await call).status).toBe(403);
       }

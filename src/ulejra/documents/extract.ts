@@ -28,8 +28,26 @@ export interface ExtractedText {
   pages: string[];
 }
 
+/** Photos of documents: read with text recognition only (they have no text layer). */
+export const IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.tif',
+  '.tiff',
+  '.heic',
+  '.heif',
+]);
+
+export function isImageFile(filePath: string): boolean {
+  return IMAGE_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+/** A document or a photo, both of which My Documents can index. */
 export function isSupportedFile(filePath: string): boolean {
-  return SUPPORTED_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+  const ext = path.extname(filePath).toLowerCase();
+  return SUPPORTED_EXTENSIONS.has(ext) || IMAGE_EXTENSIONS.has(ext);
 }
 
 /** The part of unpdf (ESM-only, so its types do not resolve here) that is used. */
