@@ -1,3 +1,5 @@
+import path from 'path';
+import { ensureDir, tandemDir } from '../utils/paths';
 import { dialog, session, type BrowserWindow, type WebContents } from 'electron';
 import { IpcChannels } from '../shared/ipc-channels';
 import type { TandemAPI } from '../api/server';
@@ -12,6 +14,10 @@ import { GooglePhotosManager } from '../integrations/google-photos';
 import { UlejraAccount } from '../ulejra/account';
 import { UlejraAssistant } from '../ulejra/assistant';
 import { createBrowserToolbox } from '../ulejra/browserTools';
+import { ProcessEmbedder } from '../ulejra/documents/embedder';
+import { DocumentLibrary } from '../ulejra/documents/library';
+import { DocumentStore } from '../ulejra/documents/store';
+import { combineToolboxes, createDocumentsToolbox } from '../ulejra/documents/tool';
 import { UlejraPaymentApprovals } from '../ulejra/payments';
 import { askWithTimeout, createApprovalPrompter } from '../ulejra/prompter';
 import { ContextBridge } from '../bridge/context-bridge';
@@ -269,8 +275,14 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
   runtime.panelManager.onChatMessage((msg) => {
     if (msg.from === 'wingman' && msg.agentType === 'ulejra') void ulejraPayments.check();
   });
+  // My Documents: the user's files, indexed and searched on this computer (~/.ulejra/documents).
+  runtime.ulejraDocuments = new DocumentLibrary({
+    store: new DocumentStore(path.join(ensureDir(tandemDir('documents')), 'index.db')),
+    embedder: new ProcessEmbedder({ cacheDir: ensureDir(tandemDir('models')) }),
+  });
+  runtime.ulejraDocuments.start();
   runtime.ulejraAssistant = new UlejraAssistant({
-    browserTools: createBrowserToolbox(),
+    browserTools: combineToolboxes(createDocumentsToolbox(runtime.ulejraDocuments), createBrowserToolbox()),
     configManager: runtime.configManager,
     panelManager: runtime.panelManager,
     account: runtime.ulejraAccount,
@@ -513,6 +525,7 @@ export function createManagerRegistry(runtime: RuntimeManagers): ManagerRegistry
     pinboardManager: runtime.pinboardManager,
     googlePhotosManager: runtime.googlePhotosManager,
     ulejraAccount: runtime.ulejraAccount,
+    ulejraDocuments: runtime.ulejraDocuments,
     clipboardManager: runtime.clipboardManager,
     pairingManager: runtime.pairingManager,
     agentTrust: runtime.agentTrust,
@@ -573,6 +586,7 @@ export function destroyRuntime(opts: DestroyRuntimeOptions): void {
   runtime.videoRecorderManager.forceStop();
   runtime.chromeImporter.destroy();
   runtime.taskManager.destroy();
+  runtime.ulejraDocuments?.dispose();
   runtime.tabLockManager.destroy();
   runtime.contextMenuManager.destroy();
   runtime.devToolsManager.destroy();

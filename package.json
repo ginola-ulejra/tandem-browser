@@ -44,6 +44,7 @@
     "check-consistency": "node scripts/check-consistency.js"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.2",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@types/adm-zip": "^0.5.7",
     "acorn": "^8.16.0",
@@ -53,7 +54,9 @@
     "electron-updater": "^6.8.3",
     "express": "^4.22.2",
     "ffmpeg-static": "^5.3.0",
+    "mammoth": "1.13.0",
     "turndown": "^7.2.2",
+    "unpdf": "2.1.0",
     "ws": "^8.20.1"
   },
   "//": "Liquid Glass Lite — uncomment when package is ready",
@@ -91,7 +94,14 @@
     "files": [
       "dist/**/*",
       "shell/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/onnxruntime-web/**",
+      "!node_modules/@img/sharp-wasm32/**"
+    ],
+    "asarUnpack": [
+      "node_modules/onnxruntime-node/**",
+      "node_modules/sharp/**",
+      "node_modules/@img/**"
     ],
     "directories": {
       "output": "release",
@@ -102,6 +112,9 @@
       "target": [
         "dmg",
         "zip"
+      ],
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/{linux,win32}/**"
       ]
     },
     "win": {
@@ -121,7 +134,11 @@
       ],
       "artifactName": "ulejra-${version}-${arch}.${ext}",
       "signAndEditExecutable": false,
-      "publish": null
+      "publish": null,
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**",
+        "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
+      ]
     },
     "nsis": {
       "artifactName": "ulejra-${version}-${arch}-setup.${ext}"
@@ -130,7 +147,10 @@
       "artifactName": "ulejra-${version}-${arch}-portable.${ext}"
     },
     "linux": {
-      "category": "Utility"
+      "category": "Utility",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,win32}/**"
+      ]
     }
   }
 }

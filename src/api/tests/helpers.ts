@@ -172,6 +172,16 @@ export function createMockContext(): RouteContext {
       backendUrl: vi.fn().mockReturnValue('http://localhost:3080'),
     } as any,
 
+    // ── ulejraDocuments ───────────────────
+    ulejraDocuments: {
+      status: vi.fn().mockReturnValue({ sources: [], totals: { documents: 0, ready: 0, pending: 0, chunks: 0, embedded: 0 }, indexing: false, model: { state: 'idle' } }),
+      add: vi.fn().mockResolvedValue({ added: 0, skipped: [] }),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockReturnValue(true),
+      search: vi.fn().mockResolvedValue([]),
+      hasDocuments: vi.fn().mockReturnValue(false),
+    } as any,
+
     // ── googlePhotosManager ─────────────────────
     googlePhotosManager: {
       getStatus: vi.fn().mockReturnValue({

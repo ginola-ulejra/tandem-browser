@@ -52,6 +52,7 @@ import type { PinboardManager } from './pinboards/manager';
 import type { ClipboardManager } from './clipboard/manager';
 import type { GooglePhotosManager } from './integrations/google-photos';
 import type { UlejraAccount } from './ulejra/account';
+import type { DocumentLibrary } from './ulejra/documents/library';
 import type { PairingManager } from './pairing/manager';
 import type { CloudflarePolicyManager } from './cloudflare/policy-manager';
 
@@ -148,6 +149,8 @@ export interface ManagerRegistry {
   googlePhotosManager: GooglePhotosManager;
   /** The user's Ulejra account: sign-in, access tokens and balance. See src/ulejra/account.ts */
   ulejraAccount: UlejraAccount;
+  /** The user's own documents, indexed and searched on this computer. See src/ulejra/documents/library.ts */
+  ulejraDocuments: DocumentLibrary;
   /** Reads and saves clipboard content (text, HTML, images) to disk. See src/clipboard/manager.ts */
   clipboardManager: ClipboardManager;
   /** Remote agent pairing with setup codes, binding tokens, and lifecycle management. See src/pairing/manager.ts */

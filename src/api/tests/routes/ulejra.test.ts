@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
+import express from 'express';
 
+const showOpenDialog = vi.fn();
 vi.mock('electron', () => ({
-  BrowserWindow: vi.fn(),
+  dialog: { showOpenDialog: (...args: unknown[]) => showOpenDialog(...args) },
+  BrowserWindow: Object.assign(vi.fn(), {
+    getFocusedWindow: vi.fn(() => ({ id: 1 })),
+    getAllWindows: vi.fn(() => [{ id: 1 }]),
+  }),
   session: {},
   webContents: {
     fromId: vi.fn(),
@@ -95,5 +101,63 @@ describe('Ulejra account routes', () => {
     const res = await request(app).post('/integrations/ulejra/logout');
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, signedIn: false });
+  });
+
+  describe('My Documents', () => {
+    it('reports the library status', async () => {
+      const res = await request(app).get('/integrations/ulejra/documents');
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ ok: true, sources: [], indexing: false, model: { state: 'idle' } });
+    });
+
+    it('adds what the user picks in the file dialog', async () => {
+      showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ['/Users/me/Docs'] });
+      vi.mocked(ctx.ulejraDocuments.add).mockResolvedValueOnce({ added: 1, skipped: [] });
+      const res = await request(app).post('/integrations/ulejra/documents/add').send({ kind: 'folder' });
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ ok: true, added: 1 });
+      expect(showOpenDialog.mock.calls[0][1]).toMatchObject({ properties: ['openDirectory'] });
+      expect(ctx.ulejraDocuments.add).toHaveBeenCalledWith(['/Users/me/Docs']);
+    });
+
+    it('adds nothing when the dialog is canceled', async () => {
+      showOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+      const res = await request(app).post('/integrations/ulejra/documents/add').send({ kind: 'files' });
+      expect(res.body).toMatchObject({ ok: true, canceled: true });
+      expect(ctx.ulejraDocuments.add).not.toHaveBeenCalled();
+    });
+
+    it('refreshes and removes', async () => {
+      expect((await request(app).post('/integrations/ulejra/documents/refresh')).status).toBe(200);
+      expect(ctx.ulejraDocuments.refresh).toHaveBeenCalled();
+      expect((await request(app).delete('/integrations/ulejra/documents/sources/3')).status).toBe(200);
+      expect(ctx.ulejraDocuments.remove).toHaveBeenCalledWith(3);
+      vi.mocked(ctx.ulejraDocuments.remove).mockReturnValueOnce(false);
+      expect((await request(app).delete('/integrations/ulejra/documents/sources/9')).status).toBe(404);
+      expect((await request(app).delete('/integrations/ulejra/documents/sources/abc')).status).toBe(404);
+    });
+
+    it('offers no search route, and refuses paired remote agents', async () => {
+      expect((await request(app).post('/integrations/ulejra/documents/search').send({ query: 'x' })).status).toBe(404);
+      const remote = express();
+      remote.use(express.json());
+      remote.use((_req, res, next) => {
+        res.locals.apiCaller = { kind: 'paired-agent' };
+        next();
+      });
+      const router = express.Router();
+      registerUlejraRoutes(router, ctx);
+      remote.use(router);
+      for (const call of [
+        request(remote).get('/integrations/ulejra/documents'),
+        request(remote).post('/integrations/ulejra/documents/add').send({ kind: 'files' }),
+        request(remote).post('/integrations/ulejra/documents/refresh'),
+        request(remote).delete('/integrations/ulejra/documents/sources/1'),
+      ]) {
+        expect((await call).status).toBe(403);
+      }
+      expect(showOpenDialog).not.toHaveBeenCalled();
+      expect(ctx.ulejraDocuments.status).not.toHaveBeenCalled();
+    });
   });
 });
