@@ -35,6 +35,17 @@
     return parts.join(' · ');
   }
 
+  function ocrLine(status) {
+    if (status.ocr) {
+      const { name, done, total } = status.ocr;
+      return `Reading scanned pages with text recognition: ${name}, page ${Math.min(done + 1, total)} of ${total}`;
+    }
+    if (status.totals.ocr > 0) {
+      return `${status.totals.ocr} scanned ${status.totals.ocr === 1 ? 'PDF waits' : 'PDFs wait'} for text recognition`;
+    }
+    return '';
+  }
+
   function modelLine(status) {
     const model = status.model || { state: 'idle' };
     const { chunks, embedded } = status.totals;
@@ -71,11 +82,12 @@
         </div>`,
       )
       .join('');
-    modelEl.textContent = modelLine(status);
+    modelEl.textContent = [ocrLine(status), modelLine(status)].filter(Boolean).join(' · ');
     modelEl.hidden = !modelEl.textContent;
 
     const busy =
       status.indexing ||
+      Boolean(status.ocr) ||
       status.totals.pending > 0 ||
       status.model?.state === 'loading' ||
       (status.totals.chunks > 0 && status.totals.embedded < status.totals.chunks && status.model?.state !== 'unavailable');

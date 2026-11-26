@@ -276,9 +276,11 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
     if (msg.from === 'wingman' && msg.agentType === 'ulejra') void ulejraPayments.check();
   });
   // My Documents: the user's files, indexed and searched on this computer (~/.ulejra/documents).
+  const documentModels = new ProcessEmbedder({ cacheDir: ensureDir(tandemDir('models')) });
   runtime.ulejraDocuments = new DocumentLibrary({
     store: new DocumentStore(path.join(ensureDir(tandemDir('documents')), 'index.db')),
-    embedder: new ProcessEmbedder({ cacheDir: ensureDir(tandemDir('models')) }),
+    embedder: documentModels,
+    ocr: documentModels,
   });
   runtime.ulejraDocuments.start();
   runtime.ulejraAssistant = new UlejraAssistant({

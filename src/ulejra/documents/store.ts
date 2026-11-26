@@ -7,7 +7,8 @@ import type { TextChunk } from './extract';
  */
 
 export type SourceKind = 'file' | 'folder';
-export type DocumentStatus = 'pending' | 'indexing' | 'ready' | 'error';
+/** pending → indexing → ready | error | ocr (scanned pages wait for text recognition) → ocr-running → ready | error */
+export type DocumentStatus = 'pending' | 'indexing' | 'ready' | 'error' | 'ocr' | 'ocr-running';
 
 export interface SourceRow {
   id: number;
@@ -170,7 +171,7 @@ export class DocumentStore {
         `SELECT s.*,
            COUNT(d.id) AS documents,
            SUM(d.status = 'ready') AS ready,
-           SUM(d.status IN ('pending', 'indexing')) AS pending,
+           SUM(d.status IN ('pending', 'indexing', 'ocr', 'ocr-running')) AS pending,
            SUM(d.status = 'error') AS errors,
            COALESCE(SUM(d.chunk_count), 0) AS chunks,
            (SELECT COUNT(*) FROM chunks c JOIN documents d2 ON d2.id = c.document_id
@@ -239,21 +240,36 @@ export class DocumentStore {
     return { ...doc, status: 'indexing' };
   }
 
-  /** Documents left half-indexed by a previous run go back to pending. */
-  resetInterrupted(): void {
-    this.db.prepare(`UPDATE documents SET status = 'pending' WHERE status = 'indexing'`).run();
+  /** The next document with scanned pages waiting for text recognition, marked as being read. */
+  takeOcr(): DocumentRow | null {
+    const row = this.db.prepare(`SELECT * FROM documents WHERE status = 'ocr' ORDER BY id LIMIT 1`).get();
+    if (!row) return null;
+    const doc = this.toDocument(row);
+    this.db.prepare(`UPDATE documents SET status = 'ocr-running' WHERE id = ?`).run(doc.id);
+    return { ...doc, status: 'ocr-running' };
   }
 
-  saveChunks(documentId: number, chunks: TextChunk[]): void {
+  /** Documents left half-indexed by a previous run go back in line. */
+  resetInterrupted(): void {
+    this.db.prepare(`UPDATE documents SET status = 'pending' WHERE status = 'indexing'`).run();
+    this.db.prepare(`UPDATE documents SET status = 'ocr' WHERE status = 'ocr-running'`).run();
+  }
+
+  /** Replaces the document's chunks; `status` 'ocr' keeps it in line for text recognition. */
+  saveChunks(documentId: number, chunks: TextChunk[], status: 'ready' | 'ocr' = 'ready'): void {
     this.db.transaction(() => {
       this.db.prepare(`DELETE FROM chunks WHERE document_id = ?`).run(documentId);
       const insert = this.db.prepare(`INSERT INTO chunks (document_id, ord, page, text) VALUES (?, ?, ?, ?)`);
       chunks.forEach((chunk, ord) => insert.run(documentId, ord, chunk.page, chunk.text));
       this.db
-        .prepare(`UPDATE documents SET status = 'ready', error = NULL, chunk_count = ? WHERE id = ?`)
-        .run(chunks.length, documentId);
+        .prepare(`UPDATE documents SET status = ?, error = NULL, chunk_count = ? WHERE id = ?`)
+        .run(status, chunks.length, documentId);
     })();
     this.vectors = null;
+  }
+
+  setStatus(documentId: number, status: DocumentStatus): void {
+    this.db.prepare(`UPDATE documents SET status = ? WHERE id = ?`).run(status, documentId);
   }
 
   markError(documentId: number, message: string): void {
@@ -280,13 +296,14 @@ export class DocumentStore {
     this.vectors = null;
   }
 
-  counts(): { documents: number; ready: number; pending: number; chunks: number; embedded: number } {
+  counts(): { documents: number; ready: number; pending: number; ocr: number; chunks: number; embedded: number } {
     const row = this.db
       .prepare(
         `SELECT
            (SELECT COUNT(*) FROM documents) AS documents,
            (SELECT COUNT(*) FROM documents WHERE status = 'ready') AS ready,
-           (SELECT COUNT(*) FROM documents WHERE status IN ('pending', 'indexing')) AS pending,
+           (SELECT COUNT(*) FROM documents WHERE status IN ('pending', 'indexing', 'ocr', 'ocr-running')) AS pending,
+           (SELECT COUNT(*) FROM documents WHERE status IN ('ocr', 'ocr-running')) AS ocr,
            (SELECT COUNT(*) FROM chunks) AS chunks,
            (SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL) AS embedded`,
       )
@@ -295,6 +312,7 @@ export class DocumentStore {
       documents: row.documents,
       ready: row.ready,
       pending: row.pending,
+      ocr: row.ocr,
       chunks: row.chunks,
       embedded: row.embedded,
     };

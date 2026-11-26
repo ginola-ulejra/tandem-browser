@@ -1,8 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { createLogger } from '../../utils/logger';
-import type { Embedder, EmbedderState } from './embedder';
-import { chunkText, extractText, isSupportedFile, MAX_FILE_BYTES } from './extract';
+import type { Embedder, EmbedderState, PdfOcr } from './embedder';
+import { chunkText, extractText, isSupportedFile, MAX_FILE_BYTES, type ExtractedText } from './extract';
 import type { DocumentStore, SourceKind, SourceSummary } from './store';
 
 const log = createLogger('UlejraDocuments');
@@ -17,6 +17,10 @@ const log = createLogger('UlejraDocuments');
 export const MAX_FILES_PER_FOLDER = 2_000;
 const MAX_DEPTH = 8;
 const EMBED_BATCH = 16;
+/** A PDF page with less text than this is treated as scanned and read with text recognition. */
+export const SCANNED_PAGE_CHARS = 50;
+/** Pages read with text recognition per document, at most (about a second each). */
+export const MAX_OCR_PAGES = 500;
 /** Results from each ranking that are combined. */
 const CANDIDATES = 30;
 /** Reciprocal rank fusion constant. */
@@ -37,8 +41,10 @@ export interface DocumentLibraryStatus {
       name: string;
     }
   >;
-  totals: { documents: number; ready: number; pending: number; chunks: number; embedded: number };
+  totals: { documents: number; ready: number; pending: number; ocr: number; chunks: number; embedded: number };
   indexing: boolean;
+  /** The scanned PDF being read with text recognition right now. */
+  ocr: { name: string; done: number; total: number } | null;
   /** Smart (meaning-based) search; keyword search works without it. */
   model: EmbedderState;
 }
@@ -46,12 +52,16 @@ export interface DocumentLibraryStatus {
 export interface DocumentLibraryOptions {
   store: DocumentStore;
   embedder: Embedder;
+  /** Text recognition for scanned PDF pages; without it those pages are not indexed. */
+  ocr?: PdfOcr;
   now?: () => number;
 }
 
 export class DocumentLibrary {
   private readonly store: DocumentStore;
   private readonly embedder: Embedder;
+  private readonly ocr: PdfOcr | undefined;
+  private ocrProgress: { name: string; done: number; total: number } | null = null;
   private readonly now: () => number;
   private working: Promise<void> | null = null;
   private again = false;
@@ -59,6 +69,7 @@ export class DocumentLibrary {
   constructor(options: DocumentLibraryOptions) {
     this.store = options.store;
     this.embedder = options.embedder;
+    this.ocr = options.ocr;
     this.now = options.now ?? Date.now;
     this.store.useEmbeddingModel(this.embedder.model);
     this.store.resetInterrupted();
@@ -144,6 +155,7 @@ export class DocumentLibrary {
       })),
       totals: this.store.counts(),
       indexing: this.working !== null,
+      ocr: this.ocrProgress,
       model: this.embedder.status(),
     };
   }
@@ -236,13 +248,39 @@ export class DocumentLibrary {
   }
 
   private async work(): Promise<void> {
-    // Read every pending document first, so keyword search covers them all quickly.
+    for (;;) {
+      // Documents with text first, so keyword search covers them quickly; then their embeddings.
+      await this.readPending();
+      await this.embedMissing();
+      // Then scanned PDFs, one at a time, each searchable as soon as it is read.
+      const doc = this.store.takeOcr();
+      if (!doc) return;
+      await this.recognize(doc);
+    }
+  }
+
+  /** 1-based numbers of the PDF pages that look scanned (no text layer to speak of). */
+  private scannedPages(extracted: ExtractedText): number[] {
+    return extracted.pages
+      .map((text, i) => (text.replace(/\s+/g, '').length < SCANNED_PAGE_CHARS ? i + 1 : 0))
+      .filter((page) => page > 0)
+      .slice(0, MAX_OCR_PAGES);
+  }
+
+  private async readPending(): Promise<void> {
     for (let doc = this.store.takePending(); doc; doc = this.store.takePending()) {
       try {
+        const isPdf = path.extname(doc.path).toLowerCase() === '.pdf';
         const extracted = await extractText(doc.path);
-        const chunks = chunkText(extracted, path.extname(doc.path).toLowerCase() === '.pdf');
-        if (chunks.length === 0) {
-          this.store.markError(doc.id, 'No text found (a scan or photo needs text recognition, which is not supported yet).');
+        const chunks = chunkText(extracted, isPdf);
+        if (isPdf && this.ocr && this.scannedPages(extracted).length > 0) {
+          // The pages with text are searchable now; the scanned ones follow.
+          this.store.saveChunks(doc.id, chunks, 'ocr');
+        } else if (chunks.length === 0) {
+          this.store.markError(
+            doc.id,
+            isPdf ? 'No text found (a scanned PDF needs text recognition, which is not available).' : 'No text found.',
+          );
         } else {
           this.store.saveChunks(doc.id, chunks);
         }
@@ -250,8 +288,15 @@ export class DocumentLibrary {
         this.store.markError(doc.id, error instanceof Error ? error.message : String(error));
       }
     }
-    // Then embeddings, in batches; without the model, keyword search still works.
-    for (let batch = this.store.chunksWithoutEmbedding(EMBED_BATCH); batch.length; batch = this.store.chunksWithoutEmbedding(EMBED_BATCH)) {
+  }
+
+  /** Embeddings for chunks that have none; without the model, keyword search still works. */
+  private async embedMissing(): Promise<void> {
+    for (
+      let batch = this.store.chunksWithoutEmbedding(EMBED_BATCH);
+      batch.length;
+      batch = this.store.chunksWithoutEmbedding(EMBED_BATCH)
+    ) {
       let vectors: Float32Array[];
       try {
         vectors = await this.embedder.embed(batch.map((chunk) => chunk.text));
@@ -260,10 +305,48 @@ export class DocumentLibrary {
         return;
       }
       this.store.saveEmbeddings(batch.map((chunk, i) => ({ id: chunk.id, vector: vectors[i] })));
-      // New documents added meanwhile are read before more embeddings.
-      if (this.again && this.store.counts().pending > 0) return;
+      // Documents added meanwhile are read before more embeddings.
+      const counts = this.store.counts();
+      if (this.again && counts.pending > counts.ocr) return;
     }
   }
+
+  /** Reads a PDF's scanned pages with text recognition and indexes the whole document again. */
+  private async recognize(doc: { id: number; path: string; name: string; chunkCount: number }): Promise<void> {
+    try {
+      const extracted = await extractText(doc.path);
+      const pages = this.scannedPages(extracted);
+      this.ocrProgress = { name: doc.name, done: 0, total: pages.length };
+      const recognized = await this.ocr!.ocrPdf(doc.path, pages, (done, total) => {
+        this.ocrProgress = { name: doc.name, done, total };
+      });
+      const merged = extracted.pages.map((text, i) => {
+        const read = recognized[i + 1]?.trim();
+        return read ? `${text.trim()}\n\n${read}`.trim() : text;
+      });
+      const chunks = chunkText({ pages: merged }, true);
+      if (chunks.length === 0) {
+        this.store.markError(
+          doc.id,
+          'No text found, also not with text recognition (handwriting and blurry or very small text cannot be read).',
+        );
+      } else {
+        this.store.saveChunks(doc.id, chunks);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.warn(`Text recognition failed for ${doc.name}:`, message);
+      if (doc.chunkCount > 0) {
+        // Keep the pages that had text.
+        this.store.setStatus(doc.id, 'ready');
+      } else {
+        this.store.markError(doc.id, `Text recognition failed: ${message}`);
+      }
+    } finally {
+      this.ocrProgress = null;
+    }
+  }
+
 }
 
 export type { SourceKind };

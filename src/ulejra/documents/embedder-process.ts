@@ -1,10 +1,15 @@
+import { ocrPdfPages, stopOcr } from './ocr';
+
 /**
- * Child process that turns text into embeddings with a small multilingual model, on this computer.
+ * Child process for the heavy local work on the user's documents, on this computer: embeddings
+ * with a small multilingual model, and text recognition (OCR) of scanned PDF pages.
  * Started by `ProcessEmbedder` (Electron utilityProcess in the app, child_process.fork elsewhere).
  *
- * Messages in:  { id, texts }            -> out: { id, vectors: number[][] } | { id, error }
+ * Messages in:  { id, texts }                    -> out: { id, vectors: number[][] } | { id, error }
+ *               { id, op: 'ocr', path, pages }   -> out: { id, pages: { [page]: text } } | { id, error }
  * Messages out: { type: 'progress', loaded, total } while the model downloads (first use only),
- *               { type: 'ready' } once the model is loaded.
+ *               { type: 'ready' } once the model is loaded,
+ *               { type: 'ocr-progress', id, done, total } after each recognized page.
  */
 
 interface Port {
@@ -31,6 +36,7 @@ function connect(): Port {
 const port = connect();
 const modelId = process.env.ULEJRA_EMBEDDING_MODEL ?? '';
 const cacheDir = process.env.ULEJRA_EMBEDDING_CACHE ?? '';
+const ocrCacheDir = process.env.ULEJRA_OCR_CACHE ?? '';
 
 type Extractor = (texts: string[], options: { pooling: 'mean'; normalize: boolean }) => Promise<{ tolist(): number[][] }>;
 
@@ -64,9 +70,23 @@ function load(): Promise<Extractor> {
 }
 
 port.on('message', (raw) => {
-  const message = raw as { id?: number; texts?: unknown };
+  const message = raw as { id?: number; texts?: unknown; op?: string; path?: unknown; pages?: unknown };
   if (typeof message?.id !== 'number') return;
   const { id } = message;
+  if (message.op === 'ocr') {
+    void (async () => {
+      try {
+        const pages = Array.isArray(message.pages) ? message.pages.filter((p): p is number => Number.isInteger(p)) : [];
+        const text = await ocrPdfPages(String(message.path), pages, ocrCacheDir, (done, total) =>
+          port.postMessage({ type: 'ocr-progress', id, done, total }),
+        );
+        port.postMessage({ id, pages: text });
+      } catch (error) {
+        port.postMessage({ id, error: error instanceof Error ? error.message : String(error) });
+      }
+    })();
+    return;
+  }
   void (async () => {
     try {
       const texts = Array.isArray(message.texts) ? message.texts.map(String) : [];
@@ -78,4 +98,8 @@ port.on('message', (raw) => {
       port.postMessage({ id, error: error instanceof Error ? error.message : String(error) });
     }
   })();
+});
+
+process.on('exit', () => {
+  void stopOcr();
 });

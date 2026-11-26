@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import AdmZip from 'adm-zip';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Embedder, EmbedderState } from '../embedder';
+import type { Embedder, EmbedderState, PdfOcr } from '../embedder';
 import { chunkText, CHUNK_CHARS, extractText } from '../extract';
 import { DocumentLibrary } from '../library';
 import { DocumentStore, toFtsQuery } from '../store';
@@ -14,14 +14,21 @@ vi.mock('../../../utils/logger', () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 
-/** A minimal one-page PDF with a text layer. */
-function makePdf(text: string): Buffer {
-  const stream = `BT /F1 11 Tf 40 760 Td (${text}) Tj ET`;
+/** A minimal PDF, one page per entry; an empty string is a page without text (like a scan). */
+function makePdf(...pages: string[]): Buffer {
+  const count = pages.length;
+  const font = 3 + count * 2;
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    `<< /Type /Pages /Kids [${pages.map((_, i) => `${3 + i} 0 R`).join(' ')}] /Count ${count} >>`,
+    ...pages.map(
+      (_, i) =>
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${3 + count + i} 0 R /Resources << /Font << /F1 ${font} 0 R >> >> >>`,
+    ),
+    ...pages.map((text) => {
+      const stream = text ? `BT /F1 11 Tf 40 760 Td (${text}) Tj ET` : 'BT ET';
+      return `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+    }),
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
   ];
   let out = '%PDF-1.4\n';
@@ -83,6 +90,23 @@ class FakeEmbedder implements Embedder {
     });
   }
   dispose(): void {}
+}
+
+/** Stands in for Tesseract: returns the text set for a page, or fails. */
+class FakeOcr implements PdfOcr {
+  pagesText: Record<number, string> = {};
+  fail = false;
+  calls: Array<{ file: string; pages: number[] }> = [];
+  async ocrPdf(file: string, pages: number[], onPage?: (done: number, total: number) => void) {
+    this.calls.push({ file: path.basename(file), pages });
+    if (this.fail) throw new Error('language data could not be downloaded');
+    const out: Record<number, string> = {};
+    pages.forEach((page, i) => {
+      out[page] = this.pagesText[page] ?? '';
+      onPage?.(i + 1, pages.length);
+    });
+    return out;
+  }
 }
 
 let dir: string;
@@ -252,5 +276,82 @@ describe('documents_search tool', () => {
     expect(await combined.run('browser_click', {})).toBe('clicked');
     expect(combined.has(DOCUMENTS_TOOL)).toBe(true);
     expect(JSON.parse(await combined.run('nope', {}))).toMatchObject({ error: 'UNKNOWN_TOOL' });
+  });
+});
+
+describe('scanned PDFs (text recognition)', () => {
+  let ocr: FakeOcr;
+  let withOcr: DocumentLibrary;
+  let ocrStore: DocumentStore;
+
+  beforeEach(() => {
+    ocr = new FakeOcr();
+    ocrStore = new DocumentStore(path.join(dir, 'ocr.db'));
+    withOcr = new DocumentLibrary({ store: ocrStore, embedder, ocr });
+  });
+
+  afterEach(() => withOcr.dispose());
+
+  it('reads a scanned PDF with text recognition and finds its text by page', async () => {
+    fs.writeFileSync(docPath('kontrak-scan.pdf'), makePdf('', ''));
+    ocr.pagesText = { 1: 'Surat perjanjian sewa gudang di Cikarang.', 2: 'Uang jaminan sebesar dua bulan sewa dibayar di muka.' };
+    await withOcr.add([docPath()]);
+    await withOcr.idle();
+    expect(ocr.calls).toEqual([{ file: 'kontrak-scan.pdf', pages: [1, 2] }]);
+    expect(withOcr.status().totals).toMatchObject({ documents: 1, ready: 1, ocr: 0, chunks: 2 });
+    expect(withOcr.status().ocr).toBeNull();
+    const [hit] = await withOcr.search('uang jaminan');
+    expect(hit).toMatchObject({ name: 'kontrak-scan.pdf', page: 2 });
+  });
+
+  it('only recognizes the scanned pages of a PDF that also has text pages', async () => {
+    fs.writeFileSync(docPath('campuran.pdf'), makePdf('Laporan keuangan Warung Sari tahun 2026, ringkasan untuk pemilik.', ''));
+    ocr.pagesText = { 2: 'Salinan kontrak sewa gudang.' };
+    await withOcr.add([docPath()]);
+    await withOcr.idle();
+    expect(ocr.calls[0].pages).toEqual([2]);
+    expect((await withOcr.search('laporan keuangan'))[0]).toMatchObject({ name: 'campuran.pdf', page: 1 });
+    expect((await withOcr.search('kontrak sewa gudang'))[0]).toMatchObject({ name: 'campuran.pdf', page: 2 });
+  });
+
+  it('says so when even text recognition finds nothing', async () => {
+    fs.writeFileSync(docPath('foto.pdf'), makePdf(''));
+    await withOcr.add([docPath()]);
+    await withOcr.idle();
+    expect(withOcr.status().sources[0].firstError).toMatch(/^foto\.pdf: No text found, also not with text recognition/);
+  });
+
+  it('keeps the text pages when text recognition fails, and reports a scan that has none', async () => {
+    ocr.fail = true;
+    fs.writeFileSync(docPath('campuran.pdf'), makePdf('Laporan keuangan Warung Sari tahun 2026, ringkasan untuk pemilik.', ''));
+    fs.writeFileSync(docPath('scan.pdf'), makePdf(''));
+    await withOcr.add([docPath()]);
+    await withOcr.idle();
+    const [source] = withOcr.status().sources;
+    expect(source).toMatchObject({ documents: 2, ready: 1, errors: 1 });
+    expect(source.firstError).toBe('scan.pdf: Text recognition failed: language data could not be downloaded');
+    expect((await withOcr.search('laporan keuangan'))[0].name).toBe('campuran.pdf');
+  });
+
+  it('picks up a scan left half-read when the app quit', async () => {
+    fs.writeFileSync(docPath('scan.pdf'), makePdf(''));
+    ocr.pagesText = { 1: 'Nomor faktur INV-118 jatuh tempo 30 Desember.' };
+    await withOcr.add([docPath()]);
+    await withOcr.idle();
+    ocrStore.setStatus(1, 'ocr-running');
+    const reopened = new DocumentLibrary({ store: ocrStore, embedder, ocr });
+    reopened.start();
+    await reopened.idle();
+    expect(ocr.calls).toHaveLength(2);
+    expect(reopened.status().totals).toMatchObject({ ready: 1, ocr: 0 });
+  });
+
+  it('without text recognition, a scanned PDF is reported as unreadable', async () => {
+    fs.writeFileSync(docPath('scan.pdf'), makePdf(''));
+    await library.add([docPath()]);
+    await library.idle();
+    expect(library.status().sources[0].firstError).toBe(
+      'scan.pdf: No text found (a scanned PDF needs text recognition, which is not available).',
+    );
   });
 });
