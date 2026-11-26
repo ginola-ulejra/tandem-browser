@@ -199,7 +199,7 @@ const DEFAULT_CONFIG: TandemConfig = {
     notifyOnActivity: true,
   },
   ulejra: {
-    backendUrl: 'http://localhost:3080',
+    backendUrl: 'https://chat.ulejra.org',
     assistantEnabled: true,
   },
   onboardingComplete: false,
