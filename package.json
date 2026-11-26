@@ -1,6 +1,6 @@
 {
   "name": "tandem-browser",
-  "version": "1.11.4",
+  "version": "1.12.0",
   "description": "Local-first Electron browser with a 257-tool MCP server, MCP/HTTP control surfaces, and built-in security controls",
   "main": "dist/main.js",
   "author": "Tandem Browser contributors",
@@ -99,9 +99,9 @@
       "node_modules/**/*",
       "!node_modules/onnxruntime-web/**",
       "!node_modules/@img/sharp-wasm32/**",
-      "!node_modules/tesseract.js-core/tesseract-core.{wasm,wasm.js,js}",
-      "!node_modules/tesseract.js-core/tesseract-core-simd.{wasm,wasm.js,js}",
-      "!node_modules/tesseract.js-core/tesseract-core-relaxedsimd.{wasm,wasm.js,js}"
+      "!node_modules/tesseract.js-core/tesseract-core-lstm.{wasm,wasm.js,js}",
+      "!node_modules/tesseract.js-core/tesseract-core-simd-lstm.{wasm,wasm.js,js}",
+      "!node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.{wasm,wasm.js,js}"
     ],
     "asarUnpack": [
       "node_modules/onnxruntime-node/**",
