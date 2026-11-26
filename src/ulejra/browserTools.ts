@@ -1,3 +1,4 @@
+import type { ChatSource } from '../panel/manager';
 import { apiCall, truncateToWords } from '../mcp/api-client';
 import { wrapWithSecurityContext } from '../mcp/tools/_security-context';
 
@@ -280,6 +281,10 @@ export interface BrowserToolbox {
   approvalFor(name: string, args: Args): string | null;
   /** Runs a call; failures come back as text for the model, never as a throw. */
   run(name: string, args: Args): Promise<string>;
+  /** Documents the tools returned since the last call (and forgets them). */
+  takeSources?(): ChatSource[];
+  /** Called with the user's latest message before an answer, so tool descriptions can fit it. */
+  prepare?(latestUserMessage: string): Promise<void>;
 }
 
 export function createBrowserToolbox(call: Call = apiCall): BrowserToolbox {

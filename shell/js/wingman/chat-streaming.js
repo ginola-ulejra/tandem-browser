@@ -6,7 +6,7 @@
  * window exports: none
  *
  * createStreamingRenderer({ messagesEl }) returns:
- *   - appendMessage(role, text, ts, source, image) → HTMLElement
+ *   - appendMessage(role, text, ts, source, image, actorLabel, sources) → HTMLElement
  *   - handleRouterMessage(msg, type, backendId, ctx)  // single-mode
  *   - handleDualMessage(msg, type, backendId, ctx)    // dual-mode
  *   - clear()  // wipe streaming state (used on backend switch)
@@ -57,7 +57,31 @@ export function createStreamingRenderer({ messagesEl }) {
     return String(sourceClass || 'openclaw').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
   }
 
-  function appendMessage(role, text, timestamp, source, image, actorLabel) {
+  /** Documents an Ulejra answer came from: one button each, which opens the file on this computer. */
+  function appendSources(el, sources) {
+    if (!Array.isArray(sources) || sources.length === 0 || !window.tandem?.openUlejraDocument) return;
+    const row = document.createElement('div');
+    row.className = 'msg-sources';
+    for (const source of sources) {
+      if (!source || !Number.isInteger(source.documentId)) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'msg-source';
+      button.textContent = `📄 ${source.name}${source.page ? ` · p. ${source.page}` : ''}`;
+      button.title = 'Open this document';
+      button.addEventListener('click', async () => {
+        const result = await window.tandem.openUlejraDocument(source.documentId);
+        if (!result?.ok) {
+          button.disabled = true;
+          button.title = result?.error || 'This document could not be opened.';
+        }
+      });
+      row.appendChild(button);
+    }
+    if (row.childElementCount) el.querySelector('.msg-text')?.after(row);
+  }
+
+  function appendMessage(role, text, timestamp, source, image, actorLabel, sources) {
     const sourceClass = source || 'openclaw';
     let cls, name;
     if (role === 'user') {
@@ -84,6 +108,7 @@ export function createStreamingRenderer({ messagesEl }) {
       img.onerror = () => { img.style.display = 'none'; };
       msgText.appendChild(img);
     }
+    appendSources(el, sources);
     messagesEl.appendChild(el);
     scrollToBottom();
     return el;
@@ -119,7 +144,7 @@ export function createStreamingRenderer({ messagesEl }) {
 
       if (Array.isArray(msg)) {
         for (const historyMsg of msg) {
-          const el = appendMessage(historyMsg.role, historyMsg.text, historyMsg.timestamp, historyMsg.source, historyMsg.image, historyMsg.actorLabel);
+          const el = appendMessage(historyMsg.role, historyMsg.text, historyMsg.timestamp, historyMsg.source, historyMsg.image, historyMsg.actorLabel, historyMsg.sources);
           el.dataset.fromHistory = 'true';
         }
       }
@@ -154,7 +179,7 @@ export function createStreamingRenderer({ messagesEl }) {
       let streamData = streamingMessages.get(currentConversationId);
       if (!streamData) {
         // Create new streaming message element - always insert at the very end
-        const element = appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel);
+        const element = appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel, msg.sources);
         streamData = {
           element,
           startTime: Date.now(),
@@ -195,7 +220,7 @@ export function createStreamingRenderer({ messagesEl }) {
       }
       // Only append a new element if this is NOT a final event (final reuses the streaming element)
       if (!msg._final) {
-        appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel);
+        appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel, msg.sources);
         if (backendId === 'openclaw' && msg.text) {
           void persistChatMessage('wingman', msg.text, msg.image);
         }
@@ -228,7 +253,7 @@ export function createStreamingRenderer({ messagesEl }) {
 
       if (Array.isArray(msg)) {
         for (const m of msg) {
-          const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel);
+          const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel, m.sources);
           el.dataset.fromHistory = 'true';
         }
 
@@ -255,7 +280,7 @@ export function createStreamingRenderer({ messagesEl }) {
 
       if (!streamData) {
         // Create new streaming message element
-        const element = appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel);
+        const element = appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel, msg.sources);
         streamData = {
           element,
           startTime: Date.now(),
@@ -294,7 +319,7 @@ export function createStreamingRenderer({ messagesEl }) {
         void persistChatMessage('wingman', msg.text);
       }
       if (!msg._final) {
-        appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel);
+        appendMessage(msg.role, msg.text, msg.timestamp, msg.source, msg.image, msg.actorLabel, msg.sources);
         if (backendId === 'openclaw' && msg.text) {
           void persistChatMessage('wingman', msg.text, msg.image);
         }

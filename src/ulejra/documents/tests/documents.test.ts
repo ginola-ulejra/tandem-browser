@@ -5,9 +5,10 @@ import AdmZip from 'adm-zip';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Embedder, EmbedderState, PdfOcr } from '../embedder';
 import { chunkText, CHUNK_CHARS, extractText } from '../extract';
-import { DocumentLibrary } from '../library';
+import { DocumentLibrary, WATCH_DEBOUNCE_MS, type WatchFn } from '../library';
 import { DocumentStore, toFtsQuery } from '../store';
-import { combineToolboxes, createDocumentsToolbox, DOCUMENTS_TOOL, formatResults } from '../tool';
+import { citedSources, combineToolboxes, createDocumentsToolbox, definitionWithHint, DOCUMENTS_TOOL, formatResults } from '../tool';
+import { recognizeUpright, type TesseractWorker } from '../ocr';
 import type { BrowserToolbox } from '../../browserTools';
 
 vi.mock('../../../utils/logger', () => ({
@@ -128,7 +129,7 @@ beforeEach(() => {
   fs.mkdirSync(path.join(dir, 'docs', '.hidden'));
   store = new DocumentStore(path.join(dir, 'index.db'));
   embedder = new FakeEmbedder();
-  library = new DocumentLibrary({ store, embedder, now: () => 1_800_000_000_000 });
+  library = new DocumentLibrary({ store, embedder, now: () => 1_800_000_000_000, watch: null });
 });
 
 afterEach(() => {
@@ -300,7 +301,7 @@ describe('scanned PDFs (text recognition)', () => {
   beforeEach(() => {
     ocr = new FakeOcr();
     ocrStore = new DocumentStore(path.join(dir, 'ocr.db'));
-    withOcr = new DocumentLibrary({ store: ocrStore, embedder, ocr });
+    withOcr = new DocumentLibrary({ store: ocrStore, embedder, ocr, watch: null });
   });
 
   afterEach(() => withOcr.dispose());
@@ -352,7 +353,7 @@ describe('scanned PDFs (text recognition)', () => {
     await withOcr.add([docPath()]);
     await withOcr.idle();
     ocrStore.setStatus(1, 'ocr-running');
-    const reopened = new DocumentLibrary({ store: ocrStore, embedder, ocr });
+    const reopened = new DocumentLibrary({ store: ocrStore, embedder, ocr, watch: null });
     reopened.start();
     await reopened.idle();
     expect(ocr.calls).toHaveLength(2);
@@ -375,7 +376,7 @@ describe('photos of documents (text recognition)', () => {
 
   beforeEach(() => {
     ocr = new FakeOcr();
-    withOcr = new DocumentLibrary({ store: new DocumentStore(path.join(dir, 'photos.db')), embedder, ocr });
+    withOcr = new DocumentLibrary({ store: new DocumentStore(path.join(dir, 'photos.db')), embedder, ocr, watch: null });
     fs.mkdirSync(docPath('foto'), { recursive: true });
     fs.writeFileSync(docPath('foto', 'struk.jpg'), 'jpeg bytes');
     fs.writeFileSync(docPath('foto', 'liburan.png'), 'png bytes');
@@ -446,5 +447,158 @@ describe('photos of documents (text recognition)', () => {
     const migrated = new DocumentStore(legacy);
     expect(migrated.listSources()).toEqual([{ id: 1, path: '/old/folder', kind: 'folder', addedAt: 1, includeImages: false }]);
     migrated.close();
+  });
+});
+
+describe('watching added folders and files', () => {
+  it('indexes new, changed and deleted files in a watched folder by itself', async () => {
+    const watched = new DocumentLibrary({ store: new DocumentStore(path.join(dir, 'watch.db')), embedder });
+    try {
+      fs.writeFileSync(docPath('harga.txt'), 'Harga kopi susu Rp 18.000 per gelas.');
+      await watched.add([docPath()]);
+      await watched.idle();
+      fs.writeFileSync(docPath('sub', 'baru.txt'), 'Jadwal rapat pemegang saham hari Kamis.');
+      fs.writeFileSync(docPath('harga.txt'), 'Harga kopi susu naik menjadi Rp 20.000 per gelas.');
+      await new Promise((resolve) => setTimeout(resolve, WATCH_DEBOUNCE_MS + 1_500));
+      await watched.idle();
+      expect(watched.status().totals).toMatchObject({ documents: 2, ready: 2 });
+      expect((await watched.search('rapat pemegang saham'))[0].name).toBe('baru.txt');
+      expect((await watched.search('harga kopi susu'))[0].text).toContain('Rp 20.000');
+      fs.rmSync(docPath('sub', 'baru.txt'));
+      await new Promise((resolve) => setTimeout(resolve, WATCH_DEBOUNCE_MS + 1_500));
+      await watched.idle();
+      expect(watched.status().totals).toMatchObject({ documents: 1 });
+    } finally {
+      watched.dispose();
+    }
+  }, 15_000);
+
+  it('watches a file through its folder, ignores its neighbours, and stops watching what is removed', async () => {
+    const watchers: Array<{ target: string; recursive: boolean; listener: (e: string, f: string | null) => void; closed: boolean }> = [];
+    const watch: WatchFn = (target, options, listener) => {
+      const entry = { target, recursive: options.recursive, listener, closed: false };
+      watchers.push(entry);
+      return { close: () => { entry.closed = true; } };
+    };
+    const watched = new DocumentLibrary({ store: new DocumentStore(path.join(dir, 'watch2.db')), embedder, watch });
+    fs.writeFileSync(docPath('harga.txt'), 'Harga kopi susu Rp 18.000 per gelas.');
+    await watched.add([docPath('harga.txt'), docPath('sub')]);
+    await watched.idle();
+    expect(watchers.map(({ target, recursive }) => ({ target, recursive }))).toEqual([
+      { target: docPath(), recursive: false },
+      { target: docPath('sub'), recursive: true },
+    ]);
+    const sources = watched.status().sources;
+    watched.remove(sources[0].id);
+    expect(watchers[0].closed).toBe(true);
+    watched.dispose();
+    expect(watchers[1].closed).toBe(true);
+  });
+});
+
+describe('reading pages the right way up', () => {
+  /** Answers with the confidences given, in call order. */
+  function fakeWorker(confidences: number[]) {
+    const calls: Array<{ width: number; height: number }> = [];
+    return {
+      calls,
+      worker: {
+        async recognize(image: Buffer) {
+          const { default: sharp } = await import('sharp');
+          const { width = 0, height = 0 } = await sharp(image).metadata();
+          calls.push({ width, height });
+          const confidence = confidences[calls.length - 1] ?? 0;
+          return { data: { text: `read #${calls.length}`, confidence } };
+        },
+        setParameters: async () => undefined,
+        terminate: async () => undefined,
+      } satisfies TesseractWorker,
+    };
+  }
+
+  async function page(width: number, height: number): Promise<Buffer> {
+    const { default: sharp } = await import('sharp');
+    return sharp({ create: { width, height, channels: 3, background: '#ffffff' } }).png().toBuffer();
+  }
+
+  it('keeps a page that already reads well', async () => {
+    const { worker, calls } = fakeWorker([92]);
+    expect(await recognizeUpright(worker, await page(1200, 1600))).toEqual({ text: 'read #1', confidence: 92, rotation: 0 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('turns a page that reads best another way round, using small previews to decide', async () => {
+    // Full read (poor), previews at 0/90/180/270, then the full read at 180°.
+    const { worker, calls } = fakeWorker([41, 38, 22, 87, 30, 90]);
+    expect(await recognizeUpright(worker, await page(1200, 1600))).toEqual({ text: 'read #6', confidence: 90, rotation: 180 });
+    expect(calls.slice(1, 5)).toEqual([
+      { width: 1000, height: 1333 },
+      { width: 1333, height: 1000 },
+      { width: 1000, height: 1333 },
+      { width: 1333, height: 1000 },
+    ]);
+    expect(calls[5]).toEqual({ width: 1200, height: 1600 });
+  });
+
+  it('keeps the first reading when no other orientation is better', async () => {
+    const { worker, calls } = fakeWorker([45, 50, 20, 21, 19]);
+    expect(await recognizeUpright(worker, await page(800, 600))).toEqual({ text: 'read #1', confidence: 45, rotation: 0 });
+    expect(calls).toHaveLength(5);
+  });
+});
+
+describe('sources under an answer', () => {
+  const kontrak = { documentId: 1, name: 'Kontrak Sewa.pdf', page: 2 };
+  const menu = { documentId: 2, name: 'menu.txt', page: null };
+
+  it('keeps the documents the answer names, with or without the extension, once per page', () => {
+    const found = [kontrak, menu, { ...kontrak }, { ...kontrak, page: 3 }];
+    expect(citedSources('Menurut Kontrak Sewa, jaminannya dua bulan.', found)).toEqual([kontrak, { ...kontrak, page: 3 }]);
+    expect(citedSources('Lihat menu.txt untuk harga.', found)).toEqual([menu]);
+    expect(citedSources('Saya tidak menemukan jawabannya.', found)).toEqual([]);
+  });
+
+  it('the documents toolbox remembers what each search returned until it is asked', async () => {
+    fs.writeFileSync(docPath('kebijakan.txt'), 'Jam operasional toko: Senin sampai Jumat pukul 08.00 hingga 17.00.');
+    await library.add([docPath()]);
+    await library.idle();
+    const toolbox = combineToolboxes(createDocumentsToolbox(library));
+    await toolbox.run(DOCUMENTS_TOOL, { query: 'jam buka toko' });
+    const [source] = toolbox.takeSources!();
+    expect(source).toMatchObject({ name: 'kebijakan.txt', page: null });
+    expect(library.documentPath(source.documentId)).toBe(docPath('kebijakan.txt'));
+    expect(toolbox.takeSources!()).toEqual([]);
+    expect(library.documentPath(999)).toBeNull();
+  });
+});
+
+describe('hinting the assistant at likely documents', () => {
+  it('names only strongly matching documents for the latest message, and nothing otherwise', async () => {
+    fs.writeFileSync(docPath('gudang.txt'), 'Sewa gudang Cikarang dengan uang jaminan dua bulan sewa.');
+    fs.writeFileSync(docPath('menu.txt'), 'Daftar menu nasi goreng dan mie ayam.');
+    await library.add([docPath()]);
+    await library.idle();
+    expect(await library.likelyDocuments('uang jaminan sewa gudang Cikarang')).toEqual(['gudang.txt']);
+    expect(await library.likelyDocuments('ibu kota jepang')).toEqual([]);
+    expect(await library.likelyDocuments('   ')).toEqual([]);
+
+    const toolbox = combineToolboxes(createDocumentsToolbox(library));
+    await toolbox.prepare!('uang jaminan sewa gudang Cikarang');
+    expect(toolbox.definitions[0].function.description).toContain('these of their documents look relevant: gudang.txt.');
+    await toolbox.prepare!('ibu kota jepang');
+    expect(toolbox.definitions[0].function.description).not.toContain('look relevant');
+  });
+
+  it('gives no hint while the model cannot run', async () => {
+    fs.writeFileSync(docPath('gudang.txt'), 'Sewa gudang Cikarang dengan uang jaminan dua bulan sewa.');
+    await library.add([docPath()]);
+    await library.idle();
+    embedder.fail = true;
+    expect(await library.likelyDocuments('uang jaminan sewa gudang')).toEqual([]);
+  });
+
+  it('leaves the tool as it is without likely documents', () => {
+    expect(definitionWithHint([]).function.description).not.toContain('look relevant');
+    expect(definitionWithHint(['a.pdf', 'b.jpg']).function.description).toMatch(/look relevant: a\.pdf, b\.jpg\. Search them/);
   });
 });

@@ -15,6 +15,10 @@ import type sharpModule from 'sharp';
  */
 
 export const OCR_LANGUAGES = ['ind', 'eng'];
+/** Above this confidence a page is taken as upright without trying other orientations. */
+const UPRIGHT_CONFIDENCE = 70;
+/** Width of the quick previews used to find a page's orientation. */
+const PREVIEW_WIDTH = 1000;
 /** Images smaller than this share of the page's largest image are logos and decorations. */
 const MIN_AREA_SHARE = 0.1;
 /** Tesseract reads best at about 300 dpi; narrower page images are enlarged to this width. */
@@ -33,7 +37,7 @@ interface UnpdfModule {
   extractImages(pdf: unknown, page: number): Promise<PdfImage[]>;
 }
 
-interface TesseractWorker {
+export interface TesseractWorker {
   recognize(image: Buffer): Promise<{ data: { text: string; confidence: number } }>;
   setParameters(params: Record<string, string>): Promise<unknown>;
   terminate(): Promise<unknown>;
@@ -67,6 +71,37 @@ export async function stopOcr(): Promise<void> {
   const current = worker;
   worker = null;
   if (current) await (await current.catch(() => null))?.terminate();
+}
+
+/**
+ * Reads an image the right way up. Pages scanned or photographed sideways or upside down read as
+ * low-confidence noise; then quick previews in the four orientations pick the one Tesseract reads
+ * best, and only that one is read in full. (Tesseract's own orientation detection needs its legacy
+ * engine, which is not shipped.)
+ */
+export async function recognizeUpright(
+  ocr: TesseractWorker,
+  image: Buffer,
+): Promise<{ text: string; confidence: number; rotation: number }> {
+  const first = await ocr.recognize(image);
+  if (first.data.confidence >= UPRIGHT_CONFIDENCE) {
+    return { text: first.data.text, confidence: first.data.confidence, rotation: 0 };
+  }
+  const sharp = ((await import(SHARP)) as { default: typeof sharpModule }).default;
+  const preview = await sharp(image).resize({ width: PREVIEW_WIDTH, withoutEnlargement: true }).png().toBuffer();
+  let best = { rotation: 0, confidence: -1 };
+  for (const rotation of [0, 90, 180, 270]) {
+    const turned = rotation ? await sharp(preview).rotate(rotation).png().toBuffer() : preview;
+    const { data } = await ocr.recognize(turned);
+    if (data.confidence > best.confidence) best = { rotation, confidence: data.confidence };
+  }
+  if (best.rotation === 0) {
+    return { text: first.data.text, confidence: first.data.confidence, rotation: 0 };
+  }
+  const { data } = await ocr.recognize(await sharp(image).rotate(best.rotation).png().toBuffer());
+  return data.confidence > first.data.confidence
+    ? { text: data.text, confidence: data.confidence, rotation: best.rotation }
+    : { text: first.data.text, confidence: first.data.confidence, rotation: 0 };
 }
 
 /** The page's scanned image(s) as PNGs ready for Tesseract, largest first. */
@@ -113,9 +148,9 @@ export async function ocrPdfPages(
       const texts: string[] = [];
       if (page >= 1 && page <= pdf.numPages) {
         for (const image of await pageImages(pdf, unpdf, page)) {
-          const { data } = await ocr.recognize(image);
+          const read = await recognizeUpright(ocr, image);
           // Very low confidence is noise (photos, patterns), not text.
-          if (data.confidence >= 30 && data.text.trim()) texts.push(data.text.trim());
+          if (read.confidence >= 30 && read.text.trim()) texts.push(read.text.trim());
         }
       }
       result[page] = texts.join('\n\n');
@@ -155,9 +190,9 @@ export async function ocrImageFile(filePath: string, cacheDir: string): Promise<
     if (width > MAX_WIDTH) pipeline = pipeline.resize({ width: MAX_WIDTH });
     else if (width > 0 && width < TARGET_WIDTH) pipeline = pipeline.resize({ width: TARGET_WIDTH });
     const image = await pipeline.normalize().png().toBuffer();
-    const { data } = await (await getWorker(cacheDir)).recognize(image);
-    const text = data.text.trim();
-    return data.confidence >= 30 && text.replace(/\s+/g, '').length >= MIN_PHOTO_CHARS ? text : '';
+    const read = await recognizeUpright(await getWorker(cacheDir), image);
+    const text = read.text.trim();
+    return read.confidence >= 30 && text.replace(/\s+/g, '').length >= MIN_PHOTO_CHARS ? text : '';
   } finally {
     await source.cleanup();
   }

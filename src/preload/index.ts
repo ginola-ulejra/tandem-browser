@@ -13,6 +13,7 @@ import { createBookmarksApi } from './bookmarks';
 import { createExtensionsApi } from './extensions';
 import { createWorkspacesApi } from './workspaces';
 import { createWindowApi } from './window';
+import { createDocumentsApi } from './documents';
 
 // Stamp the pre-paint theme on <html> before the shell document renders.
 applyInitialTheme();
@@ -36,6 +37,7 @@ contextBridge.exposeInMainWorld('tandem', {
   ...createExtensionsApi(),
   ...createWorkspacesApi(),
   ...createWindowApi(),
+  ...createDocumentsApi(),
 });
 function getInitialApiBaseUrl(): string {
   const prefix = '--tandem-api-port=';

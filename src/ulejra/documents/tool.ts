@@ -1,4 +1,5 @@
 import type { BrowserToolbox, BrowserToolDefinition } from '../browserTools';
+import type { ChatSource } from '../../panel/manager';
 import type { DocumentLibrary } from './library';
 
 /**
@@ -43,10 +44,33 @@ export function formatResults(results: Awaited<ReturnType<DocumentLibrary['searc
   return out.trim();
 }
 
-export function createDocumentsToolbox(library: DocumentLibrary): BrowserToolbox {
+/** The tool, with a hint naming the documents that look relevant to the user's latest message. */
+export function definitionWithHint(likely: string[]): BrowserToolDefinition {
+  if (likely.length === 0) return DEFINITION;
   return {
+    ...DEFINITION,
+    function: {
+      ...DEFINITION.function,
+      description: `${DEFINITION.function.description} For the user's latest message these of their documents look relevant: ${likely.join(', ')}. Search them before answering from general knowledge.`,
+    },
+  };
+}
+
+export function createDocumentsToolbox(library: DocumentLibrary): BrowserToolbox {
+  let found: ChatSource[] = [];
+  let likely: string[] = [];
+  return {
+    async prepare(latestUserMessage) {
+      // Only file names, and only of strong matches, leave the computer with the message.
+      likely = library.hasDocuments() ? await library.likelyDocuments(latestUserMessage) : [];
+    },
+    takeSources() {
+      const taken = found;
+      found = [];
+      return taken;
+    },
     get definitions() {
-      return library.hasDocuments() ? [DEFINITION] : [];
+      return library.hasDocuments() ? [definitionWithHint(likely)] : [];
     },
     has: (name) => name === DOCUMENTS_TOOL,
     approvalFor: () => null,
@@ -58,7 +82,9 @@ export function createDocumentsToolbox(library: DocumentLibrary): BrowserToolbox
       if (!query.trim()) return JSON.stringify({ error: 'BAD_ARGUMENTS', message: 'query is required.' });
       const max = Number.isInteger(args.max_results) ? Math.min(8, Math.max(1, Number(args.max_results))) : 5;
       try {
-        return formatResults(await library.search(query, max));
+        const results = await library.search(query, max);
+        found.push(...results.map((r) => ({ documentId: r.documentId, name: r.name, page: r.page })));
+        return formatResults(results);
       } catch (error) {
         return JSON.stringify({ error: 'FAILED', message: error instanceof Error ? error.message : String(error) });
       }
@@ -75,8 +101,36 @@ export function combineToolboxes(...boxes: BrowserToolbox[]): BrowserToolbox {
     },
     has: (name) => Boolean(owner(name)),
     approvalFor: (name, args) => owner(name)?.approvalFor(name, args) ?? null,
+    takeSources: () => boxes.flatMap((box) => box.takeSources?.() ?? []),
+    prepare: async (latestUserMessage) => {
+      await Promise.all(boxes.map((box) => box.prepare?.(latestUserMessage)));
+    },
     run: (name, args) =>
       owner(name)?.run(name, args) ??
       Promise.resolve(JSON.stringify({ error: 'UNKNOWN_TOOL', message: `No tool named ${name}.` })),
   };
+}
+
+/**
+ * The documents an answer actually names: of the passages the search returned, those whose file
+ * name (with or without its extension) appears in the answer. One entry per document and page.
+ */
+export function citedSources(answer: string, sources: ChatSource[], limit = 5): ChatSource[] {
+  const text = answer.toLowerCase();
+  /** `term` as a whole word or phrase: "menu" is not named in "menurut". */
+  const names = (term: string) =>
+    new RegExp(`(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'u').test(text);
+  const seen = new Set<string>();
+  const cited: ChatSource[] = [];
+  for (const source of sources) {
+    const name = source.name.toLowerCase();
+    const stem = name.replace(/\.[^.]+$/, '');
+    if (!names(name) && !(stem.length >= 4 && names(stem))) continue;
+    const key = `${source.documentId}:${source.page ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cited.push(source);
+    if (cited.length >= limit) break;
+  }
+  return cited;
 }

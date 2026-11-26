@@ -418,6 +418,12 @@ export class DocumentStore {
       }));
   }
 
+  /** Where an indexed document is on disk; null for an id that is not in the index. */
+  documentPath(documentId: number): string | null {
+    const row = this.db.prepare(`SELECT path FROM documents WHERE id = ?`).get(documentId) as { path: string } | undefined;
+    return row?.path ?? null;
+  }
+
   /** The chunk right after `ord` in the same document, for context. */
   nextChunkText(documentId: number, ord: number): string | null {
     const row = this.db.prepare(`SELECT text FROM chunks WHERE document_id = ? AND ord = ?`).get(documentId, ord + 1) as

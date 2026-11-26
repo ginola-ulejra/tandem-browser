@@ -18,6 +18,13 @@ export interface ActivityEvent {
   data: Record<string, unknown>;
 }
 
+/** A document an answer came from (My Documents), shown under the answer and opened on click. */
+export interface ChatSource {
+  documentId: number;
+  name: string;
+  page: number | null;
+}
+
 export interface ChatMessage {
   id: number;
   from: string;
@@ -27,6 +34,7 @@ export interface ChatMessage {
   actorLabel?: string;
   agentType?: string;
   clear?: boolean;
+  sources?: ChatSource[];
 }
 
 export interface AddChatMessageOptions {
@@ -34,6 +42,7 @@ export interface AddChatMessageOptions {
   emitIpc?: boolean;
   actorLabel?: string;
   agentType?: string;
+  sources?: ChatSource[];
 }
 
 // ─── Manager ────────────────────────────────────────────────────────
@@ -133,6 +142,7 @@ export class PanelManager {
       image,
       actorLabel: opts.actorLabel,
       agentType: opts.agentType,
+      ...(opts.sources?.length ? { sources: opts.sources } : {}),
     };
     this.chatMessages.push(msg);
     this.saveChatHistory();

@@ -18,6 +18,7 @@ import { ProcessEmbedder } from '../ulejra/documents/embedder';
 import { DocumentLibrary } from '../ulejra/documents/library';
 import { DocumentStore } from '../ulejra/documents/store';
 import { combineToolboxes, createDocumentsToolbox } from '../ulejra/documents/tool';
+import { registerDocumentsIpc } from '../ulejra/documents/ipc';
 import { UlejraPaymentApprovals } from '../ulejra/payments';
 import { askWithTimeout, createApprovalPrompter } from '../ulejra/prompter';
 import { ContextBridge } from '../bridge/context-bridge';
@@ -283,6 +284,7 @@ export async function initializeRuntimeManagers(opts: InitializeRuntimeOptions):
     ocr: documentModels,
   });
   runtime.ulejraDocuments.start();
+  registerDocumentsIpc({ library: runtime.ulejraDocuments, panelManager: runtime.panelManager });
   runtime.ulejraAssistant = new UlejraAssistant({
     browserTools: combineToolboxes(createDocumentsToolbox(runtime.ulejraDocuments), createBrowserToolbox()),
     configManager: runtime.configManager,

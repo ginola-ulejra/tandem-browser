@@ -45,6 +45,10 @@ export const IpcChannels = {
   CHAT_SEND_LEGACY: 'chat-send-legacy',
   CHAT_SEND_IMAGE: 'chat-send-image',
   CHAT_PERSIST_MESSAGE: 'chat-persist-message',
+  /** Files or folders the user dropped on the chat, for My Documents. */
+  ULEJRA_DOCUMENTS_ADD: 'ulejra-documents-add',
+  /** Opens a document an answer came from, by its id in My Documents. */
+  ULEJRA_DOCUMENTS_OPEN: 'ulejra-documents-open',
   CHAT_MESSAGE: 'chat-message',
 
   // Wingman

@@ -161,7 +161,8 @@ class TandemLocalBackend {
       source,
       actorLabel: msg?.actorLabel || fallbackLabel,
       timestamp: msg?.timestamp || Date.now(),
-      image: msg?.image
+      image: msg?.image,
+      sources: Array.isArray(msg?.sources) ? msg.sources : undefined
     };
   }
 

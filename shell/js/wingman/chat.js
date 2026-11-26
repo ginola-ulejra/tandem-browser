@@ -226,7 +226,7 @@ export function initChat() {
       // Load combined history — OpenClaw first, then Claude
       openclawBackend.loadHistory((msgs) => {
         for (const m of msgs) {
-          const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel);
+          const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel, m.sources);
           el.dataset.fromHistory = 'true';
         }
         // Re-add local user messages
@@ -241,7 +241,7 @@ export function initChat() {
       if (id === 'openclaw') {
         openclawBackend.loadHistory((msgs) => {
           for (const m of msgs) {
-            const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel);
+            const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel, m.sources);
             el.dataset.fromHistory = 'true';
           }
           // Re-add local user messages
@@ -253,7 +253,7 @@ export function initChat() {
       } else if (id === 'tandem') {
         tandemBackend.loadHistory((msgs) => {
           for (const m of msgs) {
-            const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel);
+            const el = appendMessage(m.role, m.text, m.timestamp, m.source, m.image, m.actorLabel, m.sources);
             el.dataset.fromHistory = 'true';
           }
           // Re-add local user messages
@@ -362,21 +362,61 @@ export function initChat() {
     }
   });
 
-  inputEl.addEventListener('dragover', (e) => {
+  // ── Drop on the chat: documents and folders go to My Documents, an image is attached ──
+
+  const chatPanelEl = document.getElementById('panel-chat') || inputEl;
+  const DOCUMENT_EXTENSIONS = /\.(pdf|docx|txt|md|markdown|csv|json)$/i;
+  let dragDepth = 0;
+
+  /** Dropped items as { documents: File[], image: File|null }; folders count as documents. */
+  function sortDrop(dataTransfer) {
+    const documents = [];
+    let image = null;
+    const items = Array.from(dataTransfer?.items || []);
+    const files = Array.from(dataTransfer?.files || []);
+    files.forEach((file, i) => {
+      const entry = items[i]?.webkitGetAsEntry?.();
+      if (entry?.isDirectory || DOCUMENT_EXTENSIONS.test(file.name)) {
+        documents.push(file);
+      } else if (!image && file.type.startsWith('image/')) {
+        image = file;
+      }
+    });
+    return { documents, image };
+  }
+
+  chatPanelEl.addEventListener('dragenter', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
+    dragDepth++;
+    chatPanelEl.classList.add('documents-drop-active');
+  });
+  chatPanelEl.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) chatPanelEl.classList.remove('documents-drop-active');
+  });
+  chatPanelEl.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   });
 
-  inputEl.addEventListener('drop', (e) => {
+  chatPanelEl.addEventListener('drop', (e) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return;
     e.preventDefault();
-    const file = e.dataTransfer?.files?.[0];
-    if (file && file.type.startsWith('image/')) {
+    dragDepth = 0;
+    chatPanelEl.classList.remove('documents-drop-active');
+    const { documents, image } = sortDrop(e.dataTransfer);
+    if (documents.length && window.tandem?.addDroppedDocuments) {
+      // The main process adds them and the Ulejra assistant says so in the chat.
+      void window.tandem.addDroppedDocuments(documents);
+    }
+    if (image) {
       const reader = new FileReader();
       reader.onload = () => {
         pendingImage = reader.result;
         showImagePreview(pendingImage);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(image);
     }
   });
 
@@ -530,7 +570,7 @@ export function initChat() {
       // The built-in chat backend already shows this message when it polls the same history.
       if (currentMode === 'tandem' && tandemBackend.isConnected()) return;
       const source = msg.from; // 'wingman' or 'claude'
-      appendMessage('assistant', msg.text, msg.timestamp, source, msg.image, msg.actorLabel);
+      appendMessage('assistant', msg.text, msg.timestamp, source, msg.image, msg.actorLabel, msg.sources);
       if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
     });
   }

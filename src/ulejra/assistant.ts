@@ -1,8 +1,9 @@
 import type { ConfigManager } from '../config/manager';
-import type { ChatMessage, PanelManager } from '../panel/manager';
+import type { ChatMessage, ChatSource, PanelManager } from '../panel/manager';
 import { createLogger } from '../utils/logger';
 import { UlejraAccountError, type UlejraAccount } from './account';
 import type { BrowserToolbox } from './browserTools';
+import { citedSources } from './documents/tool';
 
 const log = createLogger('UlejraAssistant');
 
@@ -194,7 +195,11 @@ export class UlejraAssistant {
     /** What the server added during this answer, sent back when it continues after approvals. */
     const transcript: ServerTurn[] = [];
     let approvals: Record<string, 'approve' | 'reject'> | undefined;
+    // Documents found for an earlier answer are not this answer's sources.
+    this.deps.browserTools?.takeSources?.();
     try {
+      const latest = [...history].reverse().find((msg) => msg.from === 'user')?.text ?? '';
+      await this.deps.browserTools?.prepare?.(latest);
       let approvalRounds = 0;
       let browserRounds = 0;
       for (;;) {
@@ -309,7 +314,8 @@ export class UlejraAssistant {
   /** Posts the final answer, or says why there is none. */
   private finish(response: Response, body: DesktopChatReply, lastUserId: number): void {
     if (response.ok && typeof body.message?.content === 'string' && body.message.content.trim()) {
-      const answer = this.reply(body.message.content);
+      const found = this.deps.browserTools?.takeSources?.() ?? [];
+      const answer = this.reply(body.message.content, citedSources(body.message.content, found));
       this.answeredUpTo.set(answer.id, lastUserId);
     } else if (response.status === 402) {
       this.notice('Your Ulejra balance has run out, so the assistant cannot answer.');
@@ -327,11 +333,12 @@ export class UlejraAssistant {
     this.notice('Sign in to your Ulejra account in Settings (⌘ ,) to chat with the Ulejra assistant.');
   }
 
-  private reply(text: string): ChatMessage {
+  private reply(text: string, sources: ChatSource[] = []): ChatMessage {
     return this.deps.panelManager.addChatMessage('wingman', text, undefined, {
       actorLabel: ACTOR_LABEL,
       agentType: ULEJRA_AGENT_TYPE,
       notifyWebhook: false,
+      ...(sources.length ? { sources } : {}),
     });
   }
 
