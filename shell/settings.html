@@ -9,6 +9,7 @@
        parser. Sync XHR is deprecated (console warning), but it's the only way
        to avoid a dark→light flash. Fails silently if the API isn't up. -->
   <script src="js/api-base.js"></script>
+  <link rel="stylesheet" href="css/ulejra-auth.css">
   <script src="js/theme-stamp.js"></script>
   <script src="js/html-escape.js"></script>
   <meta charset="UTF-8">
@@ -233,6 +234,8 @@
     .btn-secondary:hover { background: rgba(255,255,255,0.1); }
 
     .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ulejra-auth-field { display: block; }
+    .ulejra-auth-field .uaf { max-width: 420px; }
 
     .field-stack {
       align-items: stretch;
@@ -513,49 +516,8 @@
       <p class="section-desc">Sign in, or create an account, with a code sent to your email. There is no password: it is the same account as the Ulejra web app.</p>
 
       <div id="ulejra-signed-out">
-        <div id="ulejra-step-email">
-          <div class="field">
-            <div class="field-info">
-              <div class="field-label">Email</div>
-            </div>
-            <input type="email" id="ulejra-email" autocomplete="email" placeholder="you@example.com" maxlength="120" />
-          </div>
-          <div class="field">
-            <div class="field-info">
-              <div class="field-desc ulejra-auth-error" id="ulejra-email-error" role="alert"></div>
-            </div>
-            <button class="btn btn-primary" id="btn-ulejraSendCode" type="button">Send code</button>
-          </div>
-        </div>
-
-        <div id="ulejra-step-code" hidden>
-          <div class="field">
-            <div class="field-info">
-              <div class="field-label">Code</div>
-              <div class="field-desc" id="ulejra-code-sent" role="status"></div>
-            </div>
-            <input type="text" id="ulejra-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
-          </div>
-          <div class="field" id="ulejra-name-field" hidden>
-            <div class="field-info">
-              <div class="field-label">Your name</div>
-              <div class="field-desc">No account uses this email yet. Enter your name to create one.</div>
-            </div>
-            <input type="text" id="ulejra-name" autocomplete="name" maxlength="80" />
-          </div>
-          <div class="field">
-            <div class="field-info">
-              <div class="field-desc ulejra-auth-error" id="ulejra-code-error" role="alert"></div>
-            </div>
-            <button class="btn btn-primary" id="btn-ulejraVerifyCode" type="button">Sign in</button>
-          </div>
-          <div class="field">
-            <div class="field-info"></div>
-            <div>
-              <button class="btn" id="btn-ulejraResendCode" type="button">Resend code</button>
-              <button class="btn" id="btn-ulejraChangeEmail" type="button">Use a different email</button>
-            </div>
-          </div>
+        <div class="field ulejra-auth-field">
+          <div id="ulejra-auth-form"></div>
         </div>
       </div>
 
@@ -1218,6 +1180,7 @@
   </div>
 
   <script src="js/api-auth.js"></script>
+  <script src="js/ulejra-auth-form.js"></script>
   <script src="js/shortcut-labels.js"></script>
   <script src="js/pages/settings.js"></script>
 </body>

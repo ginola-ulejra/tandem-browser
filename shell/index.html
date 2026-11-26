@@ -170,6 +170,17 @@
       </div>
     </div>
 
+    <!-- Ulejra launch screen: sign in or create an account (js/ulejra-auth-gate.js) -->
+    <div class="ulejra-auth-overlay" id="ulejra-auth-overlay" role="dialog" aria-modal="true" aria-labelledby="ulejra-auth-title" hidden>
+      <div class="ulejra-auth-card">
+        <img class="ulejra-auth-logo" src="ulejra-logo.png" alt="">
+        <h2 id="ulejra-auth-title">Welcome to Ulejra</h2>
+        <p class="ulejra-auth-intro">Sign in or create your account with a code sent to your email. No password needed.</p>
+        <div id="ulejra-auth-form"></div>
+        <button class="ulejra-auth-later" id="ulejra-auth-later" type="button">Not now</button>
+      </div>
+    </div>
+
     <!-- Onboarding Overlay -->
     <div class="onboarding-overlay" id="onboarding-overlay">
       <div class="onboarding-content">
@@ -398,6 +409,8 @@
   <script src="js/html-escape.js"></script>
   <script src="js/api-base.js"></script>
   <script src="js/api-auth.js"></script>
+  <script src="js/ulejra-auth-form.js"></script>
+  <script src="js/ulejra-auth-gate.js"></script>
 
   <!-- Chat Router + Backends (Phase 3) + DualMode (Phase 5) -->
   <script src="chat/tandem-local-backend.js"></script>
@@ -533,6 +546,7 @@
   </div>
 
   <link rel="stylesheet" href="css/shortcuts.css">
+  <link rel="stylesheet" href="css/ulejra-auth.css">
 
   <script src="js/shortcuts.js"></script>
 

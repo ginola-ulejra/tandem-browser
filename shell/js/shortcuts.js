@@ -176,6 +176,8 @@
 
     // Check if onboarding should be shown
     async function checkOnboarding() {
+      // The Ulejra sign-in screen comes first; the tour opens once it is closed.
+      await window.ulejraAuthGate?.done;
       try {
         const response = await fetch('http://localhost:8765/config');
         if (response.ok) {
