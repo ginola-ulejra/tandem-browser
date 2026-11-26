@@ -81,10 +81,39 @@ describe('resolveBackendOrigin', () => {
 });
 
 describe('UlejraAccount', () => {
-  it('signs in, keeps only the refresh token, and reads the shared balance', async () => {
+  it('asks the server to email a code', async () => {
+    const { account, fetchImpl, secrets } = setup([() => json({ message: 'sent', resendAfterSec: 60, expiresInSec: 600 })]);
+
+    expect(await account.requestCode(' SME@example.com ')).toEqual({ email: 'sme@example.com', resendAfterSec: 60 });
+
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe('http://localhost:3080/api/auth/email-code/request');
+    expect(JSON.parse(init.body as string)).toEqual({ email: 'sme@example.com' });
+    expect(secrets.values.size).toBe(0);
+  });
+
+  it('uses the code sent moments ago instead of failing on the resend cooldown', async () => {
+    const { account } = setup([
+      () => json({ code: 'resend_too_soon', message: 'Wait 42 seconds', retryAfterSec: 42 }, { status: 429 }),
+    ]);
+    expect(await account.requestCode('sme@example.com')).toEqual({ email: 'sme@example.com', resendAfterSec: 42 });
+  });
+
+  it('says so when the server has no email code sign-in', async () => {
+    const { account } = setup([() => json({ message: 'Email code sign-in is not enabled.' }, { status: 404 })]);
+    await expect(account.requestCode('sme@example.com')).rejects.toMatchObject({ code: 'code_login_unavailable' });
+  });
+
+  it('refuses an invalid address without asking the server', async () => {
+    const { account, fetchImpl } = setup([]);
+    await expect(account.requestCode('not-an-email')).rejects.toMatchObject({ code: 'invalid_email' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('signs in with the code, keeps only the refresh token, and reads the shared balance', async () => {
     const { account, secrets, fetchImpl } = setup([loginOk, () => balance(4_999_976.06)]);
 
-    const status = await account.login(' sme@example.com ', 'secret-password');
+    const status = await account.verifyCode(' sme@example.com ', ' 123456 ');
 
     expect(status).toEqual({
       signedIn: true,
@@ -95,8 +124,8 @@ describe('UlejraAccount', () => {
       balance: { tokenCredits: 4_999_976.06, usd: 4.99997606 },
     });
     const [loginUrl, loginInit] = fetchImpl.mock.calls[0];
-    expect(loginUrl).toBe('http://localhost:3080/api/auth/login');
-    expect(JSON.parse(loginInit.body as string)).toEqual({ email: 'sme@example.com', password: 'secret-password' });
+    expect(loginUrl).toBe('http://localhost:3080/api/auth/email-code/verify');
+    expect(JSON.parse(loginInit.body as string)).toEqual({ email: 'sme@example.com', code: '123456' });
     const stored = JSON.parse(secrets.values.get('ulejra-account') ?? '{}');
     expect(stored).toEqual({
       origin: 'http://localhost:3080',
@@ -104,24 +133,53 @@ describe('UlejraAccount', () => {
       email: 'sme@example.com',
       name: 'Warung Sari',
     });
-    expect(JSON.stringify(stored)).not.toContain('secret-password');
     const [balanceUrl, balanceInit] = fetchImpl.mock.calls[1];
     expect(balanceUrl).toBe('http://localhost:3080/api/balance');
     expect((balanceInit.headers as Record<string, string>).authorization).toMatch(/^Bearer /);
   });
 
+  it('asks for a name for a new address, then creates the account with it', async () => {
+    const { account, secrets, fetchImpl } = setup([
+      () => json({ nameRequired: true }),
+      loginOk,
+      () => balance(5_000_000),
+    ]);
+
+    expect(await account.verifyCode('new@example.com', '123456')).toEqual({
+      signedIn: false,
+      nameRequired: true,
+      backendUrl: 'http://localhost:3080',
+    });
+    expect(secrets.values.size).toBe(0);
+
+    expect(await account.verifyCode('new@example.com', '123456', ' Warung Sari ')).toMatchObject({ signedIn: true });
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body as string)).toEqual({
+      email: 'new@example.com',
+      code: '123456',
+      name: 'Warung Sari',
+    });
+  });
+
   it('refuses two-factor accounts without storing anything', async () => {
     const { account, secrets } = setup([() => json({ twoFAPending: true, tempToken: 't' })]);
-    await expect(account.login('sme@example.com', 'pw')).rejects.toMatchObject({ code: 'two_factor_unsupported' });
+    await expect(account.verifyCode('sme@example.com', '123456')).rejects.toMatchObject({ code: 'two_factor_unsupported' });
     expect(secrets.values.size).toBe(0);
   });
 
-  it('passes the server message on a wrong password', async () => {
-    const { account } = setup([() => json({ message: 'Email or password is incorrect' }, { status: 422 })]);
-    await expect(account.login('sme@example.com', 'wrong')).rejects.toMatchObject({
-      code: 'invalid_credentials',
-      message: 'Email or password is incorrect',
+  it('passes the server message on a wrong code', async () => {
+    const { account } = setup([
+      () => json({ code: 'invalid_code', message: 'The code is incorrect or has expired.' }, { status: 400 }),
+    ]);
+    await expect(account.verifyCode('sme@example.com', '000000')).rejects.toMatchObject({
+      code: 'invalid_code',
+      message: 'The code is incorrect or has expired.',
     });
+  });
+
+  it('refuses a malformed code without asking the server', async () => {
+    const { account, fetchImpl } = setup([]);
+    await expect(account.verifyCode('sme@example.com', '12ab')).rejects.toMatchObject({ code: 'invalid_code' });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('renews an expiring access token with the refresh cookie and keeps a rotated one', async () => {
@@ -130,7 +188,7 @@ describe('UlejraAccount', () => {
       () => balance(5_000_000),
       () => json({ token: jwt(NOW + 30 * 60_000) }, { cookie: 'refreshToken=refresh-2; Path=/api; HttpOnly' }),
     ]);
-    await account.login('sme@example.com', 'pw');
+    await account.verifyCode('sme@example.com', '123456');
     advance(15 * 60_000);
 
     const token = await account.getAccessToken();
@@ -148,7 +206,7 @@ describe('UlejraAccount', () => {
       () => balance(5_000_000),
       () => new Response('Invalid refresh token', { status: 403 }),
     ]);
-    await account.login('sme@example.com', 'pw');
+    await account.verifyCode('sme@example.com', '123456');
     advance(15 * 60_000);
 
     await expect(account.getAccessToken()).rejects.toMatchObject({ code: 'signed_out' });
@@ -157,7 +215,7 @@ describe('UlejraAccount', () => {
 
   it('never sends the session to a changed server address', async () => {
     const { account, config, fetchImpl } = setup([loginOk, () => balance(5_000_000)]);
-    await account.login('sme@example.com', 'pw');
+    await account.verifyCode('sme@example.com', '123456');
     config.ulejra.backendUrl = 'https://attacker.example';
 
     expect(await account.status()).toEqual({ signedIn: false, backendUrl: 'https://attacker.example' });
@@ -174,13 +232,13 @@ describe('UlejraAccount', () => {
       () => json({ token: jwt(NOW + 30 * 60_000) }),
       () => json({ ok: true }),
     ]);
-    await account.login('sme@example.com', 'pw');
+    await account.verifyCode('sme@example.com', '123456');
 
     const response = await account.authorizedFetch('/api/ulejra/desktop/chat', { method: 'POST' });
 
     expect(response.status).toBe(200);
     expect(fetchImpl.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
-      '/api/auth/login',
+      '/api/auth/email-code/verify',
       '/api/balance',
       '/api/ulejra/desktop/chat',
       '/api/auth/refresh',
@@ -190,7 +248,7 @@ describe('UlejraAccount', () => {
 
   it('signs out locally and on the server', async () => {
     const { account, secrets, fetchImpl } = setup([loginOk, () => balance(5_000_000), () => json({})]);
-    await account.login('sme@example.com', 'pw');
+    await account.verifyCode('sme@example.com', '123456');
 
     expect(await account.logout()).toEqual({ signedIn: false, backendUrl: 'http://localhost:3080' });
     expect(secrets.values.size).toBe(0);
@@ -205,7 +263,7 @@ describe('UlejraAccount', () => {
       throw new Error('Electron safeStorage encryption is not available');
     };
 
-    const status = await account.login('sme@example.com', 'pw');
+    const status = await account.verifyCode('sme@example.com', '123456');
 
     expect(status).toMatchObject({ signedIn: true, remembered: false });
     expect(secrets.values.size).toBe(0);
@@ -216,6 +274,6 @@ describe('UlejraAccount', () => {
 
   it('reports a server that does not meter usage', async () => {
     const { account } = setup([loginOk, () => new Response(null, { status: 204 })]);
-    expect((await account.login('sme@example.com', 'pw')).balance).toBeNull();
+    expect((await account.verifyCode('sme@example.com', '123456')).balance).toBeNull();
   });
 });

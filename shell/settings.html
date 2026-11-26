@@ -510,26 +510,52 @@
     <!-- ═══ Ulejra Account ═══ -->
     <div class="section" id="account">
       <h2>👤 Ulejra Account</h2>
-      <p class="section-desc">Sign in with the same email and password as the Ulejra web app. Your password is sent to the Ulejra server once and never stored on this computer.</p>
+      <p class="section-desc">Sign in, or create an account, with a code sent to your email. There is no password: it is the same account as the Ulejra web app.</p>
 
       <div id="ulejra-signed-out">
-        <div class="field">
-          <div class="field-info">
-            <div class="field-label">Email</div>
+        <div id="ulejra-step-email">
+          <div class="field">
+            <div class="field-info">
+              <div class="field-label">Email</div>
+            </div>
+            <input type="email" id="ulejra-email" autocomplete="email" placeholder="you@example.com" maxlength="120" />
           </div>
-          <input type="email" id="ulejra-email" autocomplete="username" placeholder="you@example.com" />
+          <div class="field">
+            <div class="field-info">
+              <div class="field-desc ulejra-auth-error" id="ulejra-email-error" role="alert"></div>
+            </div>
+            <button class="btn btn-primary" id="btn-ulejraSendCode" type="button">Send code</button>
+          </div>
         </div>
-        <div class="field">
-          <div class="field-info">
-            <div class="field-label">Password</div>
+
+        <div id="ulejra-step-code" hidden>
+          <div class="field">
+            <div class="field-info">
+              <div class="field-label">Code</div>
+              <div class="field-desc" id="ulejra-code-sent" role="status"></div>
+            </div>
+            <input type="text" id="ulejra-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" />
           </div>
-          <input type="password" id="ulejra-password" autocomplete="current-password" />
-        </div>
-        <div class="field">
-          <div class="field-info">
-            <div class="field-desc" id="ulejra-login-error" role="alert"></div>
+          <div class="field" id="ulejra-name-field" hidden>
+            <div class="field-info">
+              <div class="field-label">Your name</div>
+              <div class="field-desc">No account uses this email yet. Enter your name to create one.</div>
+            </div>
+            <input type="text" id="ulejra-name" autocomplete="name" maxlength="80" />
           </div>
-          <button class="btn btn-primary" id="btn-ulejraSignIn" type="button">Sign in</button>
+          <div class="field">
+            <div class="field-info">
+              <div class="field-desc ulejra-auth-error" id="ulejra-code-error" role="alert"></div>
+            </div>
+            <button class="btn btn-primary" id="btn-ulejraVerifyCode" type="button">Sign in</button>
+          </div>
+          <div class="field">
+            <div class="field-info"></div>
+            <div>
+              <button class="btn" id="btn-ulejraResendCode" type="button">Resend code</button>
+              <button class="btn" id="btn-ulejraChangeEmail" type="button">Use a different email</button>
+            </div>
+          </div>
         </div>
       </div>
 

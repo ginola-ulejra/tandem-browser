@@ -10,7 +10,10 @@ import { UlejraAccountError, type UlejraAccountErrorCode } from '../../ulejra/ac
  */
 const STATUS_FOR: Record<UlejraAccountErrorCode, number> = {
   invalid_backend_url: 400,
-  invalid_credentials: 400,
+  invalid_email: 400,
+  invalid_code: 400,
+  invalid_name: 400,
+  code_login_unavailable: 400,
   two_factor_unsupported: 400,
   rate_limited: 429,
   backend_unreachable: 502,
@@ -34,16 +37,32 @@ export function registerUlejraRoutes(router: Router, ctx: RouteContext): void {
     }
   });
 
-  router.post('/integrations/ulejra/login', createRateLimitMiddleware({
-    bucket: 'ulejra-login',
+  /** Passwordless: the Ulejra server emails a code, which signs in or creates the account. */
+  router.post('/integrations/ulejra/code/request', createRateLimitMiddleware({
+    bucket: 'ulejra-code-request',
+    windowMs: 60_000,
+    max: 5,
+    message: 'Too many codes requested. Try again in a minute.',
+  }), async (req: Request, res: Response) => {
+    try {
+      const email = typeof req.body?.email === 'string' ? req.body.email : '';
+      res.json({ ok: true, ...(await ctx.ulejraAccount.requestCode(email)) });
+    } catch (e) {
+      sendAccountError(res, e);
+    }
+  });
+
+  router.post('/integrations/ulejra/code/verify', createRateLimitMiddleware({
+    bucket: 'ulejra-code-verify',
     windowMs: 60_000,
     max: 10,
     message: 'Too many sign-in attempts. Try again in a minute.',
   }), async (req: Request, res: Response) => {
     try {
       const email = typeof req.body?.email === 'string' ? req.body.email : '';
-      const password = typeof req.body?.password === 'string' ? req.body.password : '';
-      res.json({ ok: true, ...(await ctx.ulejraAccount.login(email, password)) });
+      const code = typeof req.body?.code === 'string' ? req.body.code : '';
+      const name = typeof req.body?.name === 'string' ? req.body.name : undefined;
+      res.json({ ok: true, ...(await ctx.ulejraAccount.verifyCode(email, code, name)) });
     } catch (e) {
       sendAccountError(res, e);
     }

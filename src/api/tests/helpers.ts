@@ -164,7 +164,8 @@ export function createMockContext(): RouteContext {
     // ── ulejraAccount ─────────────────────
     ulejraAccount: {
       status: vi.fn().mockResolvedValue({ signedIn: false, backendUrl: 'http://localhost:3080' }),
-      login: vi.fn(),
+      requestCode: vi.fn(),
+      verifyCode: vi.fn(),
       logout: vi.fn().mockResolvedValue({ signedIn: false, backendUrl: 'http://localhost:3080' }),
       getAccessToken: vi.fn(),
       authorizedFetch: vi.fn(),

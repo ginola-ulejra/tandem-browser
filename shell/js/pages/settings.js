@@ -59,27 +59,106 @@ async function loadUlejraAccount() {
   }
 }
 
-async function signInToUlejra() {
-  const button = document.getElementById('btn-ulejraSignIn');
-  const errorEl = document.getElementById('ulejra-login-error');
-  const passwordEl = document.getElementById('ulejra-password');
+// Passwordless sign-in: the Ulejra server emails a 6-digit code; redeeming it signs in, or creates
+// the account (with a name) when the address has none.
+const ulejraSignIn = { email: '', needsName: false, resendTimer: null, resendAt: 0 };
+
+function showUlejraStep(step) {
+  document.getElementById('ulejra-step-email').hidden = step !== 'email';
+  document.getElementById('ulejra-step-code').hidden = step !== 'code';
+  document.getElementById('ulejra-email-error').textContent = '';
+  document.getElementById('ulejra-code-error').textContent = '';
+  if (step === 'email') {
+    ulejraSignIn.needsName = false;
+    document.getElementById('ulejra-name-field').hidden = true;
+    document.getElementById('ulejra-code').value = '';
+    clearInterval(ulejraSignIn.resendTimer);
+  }
+}
+
+function updateUlejraResend() {
+  const button = document.getElementById('btn-ulejraResendCode');
+  const left = Math.ceil((ulejraSignIn.resendAt - Date.now()) / 1000);
+  button.disabled = left > 0;
+  button.textContent = left > 0 ? `Resend code (${left}s)` : 'Resend code';
+  if (left <= 0) clearInterval(ulejraSignIn.resendTimer);
+}
+
+async function sendUlejraCode() {
+  const onCodeStep = !document.getElementById('ulejra-step-code').hidden;
+  const button = document.getElementById(onCodeStep ? 'btn-ulejraResendCode' : 'btn-ulejraSendCode');
+  const errorEl = document.getElementById(onCodeStep ? 'ulejra-code-error' : 'ulejra-email-error');
+  const email = onCodeStep ? ulejraSignIn.email : document.getElementById('ulejra-email').value;
   errorEl.textContent = '';
   button.disabled = true;
   try {
-    const res = await fetch(`${API}/integrations/ulejra/login`, {
+    const res = await fetch(`${API}/integrations/ulejra/code/request`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: document.getElementById('ulejra-email').value,
-        password: passwordEl.value,
-      }),
+      body: JSON.stringify({ email }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      errorEl.textContent = body.error || 'The code could not be sent.';
+      return;
+    }
+    ulejraSignIn.email = body.email;
+    showUlejraStep('code');
+    if (ulejraSignIn.needsName) document.getElementById('ulejra-name-field').hidden = false;
+    document.getElementById('ulejra-code-sent').textContent =
+      `We sent a 6-digit code to ${body.email}. It expires in 10 minutes.`;
+    ulejraSignIn.resendAt = Date.now() + (body.resendAfterSec || 60) * 1000;
+    clearInterval(ulejraSignIn.resendTimer);
+    ulejraSignIn.resendTimer = setInterval(updateUlejraResend, 1000);
+    updateUlejraResend();
+    document.getElementById('ulejra-code').focus();
+  } catch {
+    errorEl.textContent = 'Ulejra is not responding. Try again.';
+  } finally {
+    if (!onCodeStep) button.disabled = false;
+    else updateUlejraResend();
+  }
+}
+
+async function verifyUlejraCode() {
+  const button = document.getElementById('btn-ulejraVerifyCode');
+  const errorEl = document.getElementById('ulejra-code-error');
+  const codeEl = document.getElementById('ulejra-code');
+  const nameEl = document.getElementById('ulejra-name');
+  const code = codeEl.value.replace(/\D/g, '');
+  errorEl.textContent = '';
+  if (code.length !== 6) {
+    errorEl.textContent = 'Enter the 6-digit code from the email.';
+    return;
+  }
+  const name = nameEl.value.trim();
+  if (ulejraSignIn.needsName && (name.length < 3 || name.length > 80)) {
+    errorEl.textContent = 'Your name must be 3 to 80 characters.';
+    return;
+  }
+  button.disabled = true;
+  try {
+    const res = await fetch(`${API}/integrations/ulejra/code/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: ulejraSignIn.email, code, ...(ulejraSignIn.needsName ? { name } : {}) }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       errorEl.textContent = body.error || 'Sign-in failed.';
       return;
     }
-    passwordEl.value = '';
+    if (body.nameRequired) {
+      ulejraSignIn.needsName = true;
+      document.getElementById('ulejra-name-field').hidden = false;
+      button.textContent = 'Create account';
+      nameEl.focus();
+      return;
+    }
+    codeEl.value = '';
+    nameEl.value = '';
+    button.textContent = 'Sign in';
+    showUlejraStep('email');
     renderUlejraAccount(body);
     showToast('Signed in ✓');
   } catch {
@@ -99,10 +178,22 @@ async function signOutOfUlejra() {
   }
 }
 
-document.getElementById('btn-ulejraSignIn')?.addEventListener('click', signInToUlejra);
-document.getElementById('ulejra-password')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') signInToUlejra();
+document.getElementById('btn-ulejraSendCode')?.addEventListener('click', sendUlejraCode);
+document.getElementById('ulejra-email')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendUlejraCode();
 });
+document.getElementById('btn-ulejraVerifyCode')?.addEventListener('click', verifyUlejraCode);
+document.getElementById('btn-ulejraResendCode')?.addEventListener('click', sendUlejraCode);
+document.getElementById('btn-ulejraChangeEmail')?.addEventListener('click', () => {
+  document.getElementById('btn-ulejraVerifyCode').textContent = 'Sign in';
+  showUlejraStep('email');
+  document.getElementById('ulejra-email').focus();
+});
+for (const id of ['ulejra-code', 'ulejra-name']) {
+  document.getElementById(id)?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') verifyUlejraCode();
+  });
+}
 document.getElementById('btn-ulejraSignOut')?.addEventListener('click', signOutOfUlejra);
 document.getElementById('cfg-ulejraBackendUrl')?.addEventListener('change', async (e) => {
   const backendUrl = e.target.value.trim();

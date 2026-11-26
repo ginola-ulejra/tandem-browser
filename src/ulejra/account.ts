@@ -5,10 +5,12 @@ import { createLogger } from '../utils/logger';
 const log = createLogger('UlejraAccount');
 
 /**
- * The user's Ulejra account: the same email and password as the Ulejra web app (LibreChat).
+ * The user's Ulejra account: the same account as the Ulejra web app (LibreChat).
  *
- * Signing in posts the password once to the backend's `/api/auth/login` and keeps the refresh
- * token it sets as a cookie, encrypted in the secret store. Access tokens (15 minutes) live in
+ * Sign-in is passwordless: the backend emails a 6-digit code (`/api/auth/email-code/request`),
+ * and redeeming it (`/api/auth/email-code/verify`) signs in, or creates the account when the
+ * address has none and a name is given. The refresh token the backend sets as a cookie is kept
+ * encrypted in the secret store. Access tokens (15 minutes) live in
  * memory only and are renewed through `/api/auth/refresh`. The renderer never sees either token.
  *
  * The refresh token is bound to the backend origin it came from: if the configured backend URL
@@ -35,7 +37,10 @@ interface StoredAccount {
 
 export type UlejraAccountErrorCode =
   | 'invalid_backend_url'
-  | 'invalid_credentials'
+  | 'invalid_email'
+  | 'invalid_code'
+  | 'invalid_name'
+  | 'code_login_unavailable'
   | 'two_factor_unsupported'
   | 'rate_limited'
   | 'backend_unreachable'
@@ -51,6 +56,19 @@ export class UlejraAccountError extends Error {
 export interface UlejraBalance {
   tokenCredits: number;
   usd: number;
+}
+
+export interface UlejraCodeSent {
+  email: string;
+  /** Seconds until another code can be requested. */
+  resendAfterSec: number;
+}
+
+/** A redeemed code for an address without an account: send it again with a name. */
+export interface UlejraNameRequired {
+  signedIn: false;
+  nameRequired: true;
+  backendUrl: string;
 }
 
 export interface UlejraAccountStatus {
@@ -109,13 +127,35 @@ function tokenExpiry(token: string, now: number): number {
   return now + 15 * 60_000;
 }
 
-async function readMessage(response: Response): Promise<string | undefined> {
+interface BackendAnswer {
+  message?: string;
+  code?: string;
+  retryAfterSec?: number;
+  resendAfterSec?: number;
+}
+
+async function readAnswer(response: Response): Promise<BackendAnswer> {
   try {
-    const body = (await response.json()) as { message?: unknown };
-    return typeof body.message === 'string' ? body.message : undefined;
+    const body = (await response.json()) as Record<string, unknown>;
+    return {
+      message: typeof body.message === 'string' ? body.message : undefined,
+      code: typeof body.code === 'string' ? body.code : undefined,
+      retryAfterSec: typeof body.retryAfterSec === 'number' ? body.retryAfterSec : undefined,
+      resendAfterSec: typeof body.resendAfterSec === 'number' ? body.resendAfterSec : undefined,
+    };
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmail(email: string): string {
+  const trimmed = email.trim().toLowerCase();
+  if (!EMAIL_PATTERN.test(trimmed) || trimmed.length > 120) {
+    throw new UlejraAccountError('invalid_email', 'Enter a valid email address.');
+  }
+  return trimmed;
 }
 
 export interface UlejraAccountOptions {
@@ -143,30 +183,55 @@ export class UlejraAccount {
     return this.configManager.getConfig().ulejra.backendUrl;
   }
 
-  /** Signs in with the Ulejra web account. The password is sent once and never stored. */
-  async login(email: string, password: string): Promise<UlejraAccountStatus> {
+  /** Emails a 6-digit sign-in code. The answer does not say whether the address has an account. */
+  async requestCode(email: string): Promise<UlejraCodeSent> {
     const origin = resolveBackendOrigin(this.backendUrl());
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      throw new UlejraAccountError('invalid_credentials', 'Enter your Ulejra email and password.');
-    }
-    const response = await this.request(`${origin}/api/auth/login`, {
+    const address = normalizeEmail(email);
+    const response = await this.request(`${origin}/api/auth/email-code/request`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: trimmedEmail, password }),
+      body: JSON.stringify({ email: address }),
     });
-    if (response.status === 429) {
-      throw new UlejraAccountError('rate_limited', 'Too many sign-in attempts. Try again in a few minutes.');
+    const answer = await readAnswer(response);
+    if (response.ok) {
+      return { email: address, resendAfterSec: answer.resendAfterSec ?? 60 };
     }
+    if (response.status === 429 && answer.code === 'resend_too_soon') {
+      // A code was sent moments ago and is still valid: use that one.
+      return { email: address, resendAfterSec: answer.retryAfterSec ?? 60 };
+    }
+    throw this.codeError(response.status, answer, 'The code could not be sent. Try again shortly.');
+  }
+
+  /**
+   * Redeems an emailed code: signs in, or creates the account when the address has none and a
+   * name is given. Without a name for a new address the answer is `nameRequired`.
+   */
+  async verifyCode(email: string, code: string, name?: string): Promise<UlejraAccountStatus | UlejraNameRequired> {
+    const origin = resolveBackendOrigin(this.backendUrl());
+    const address = normalizeEmail(email);
+    const digits = code.replace(/\s/g, '');
+    if (!/^\d{6}$/.test(digits)) {
+      throw new UlejraAccountError('invalid_code', 'Enter the 6-digit code from the email.');
+    }
+    const trimmedName = name?.trim();
+    const response = await this.request(`${origin}/api/auth/email-code/verify`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: address, code: digits, ...(trimmedName ? { name: trimmedName } : {}) }),
+    });
     if (!response.ok) {
-      const message = await readMessage(response);
-      throw new UlejraAccountError('invalid_credentials', message ?? 'Email or password is incorrect.');
+      throw this.codeError(response.status, await readAnswer(response), 'The code could not be checked.');
     }
     const body = (await response.json()) as {
+      nameRequired?: boolean;
       token?: string;
       twoFAPending?: boolean;
       user?: { email?: string; name?: string; username?: string };
     };
+    if (body.nameRequired) {
+      return { signedIn: false, nameRequired: true, backendUrl: this.backendUrl() };
+    }
     if (body.twoFAPending) {
       throw new UlejraAccountError(
         'two_factor_unsupported',
@@ -180,12 +245,35 @@ export class UlejraAccount {
     this.store({
       origin,
       refreshToken,
-      email: body.user?.email ?? trimmedEmail,
+      email: body.user?.email ?? address,
       name: body.user?.name || body.user?.username || undefined,
     });
     this.access = { token: body.token, expiresAt: tokenExpiry(body.token, this.now()), origin };
     log.info('Signed in to Ulejra');
     return this.status();
+  }
+
+  private codeError(status: number, answer: BackendAnswer, fallback: string): UlejraAccountError {
+    const message = answer.message ?? fallback;
+    if (status === 404) {
+      return new UlejraAccountError(
+        'code_login_unavailable',
+        'This Ulejra server does not offer sign-in with an email code.',
+      );
+    }
+    if (status === 429) {
+      return new UlejraAccountError('rate_limited', message);
+    }
+    if (answer.code === 'invalid_code') {
+      return new UlejraAccountError('invalid_code', message);
+    }
+    if (answer.code === 'invalid_name') {
+      return new UlejraAccountError('invalid_name', message);
+    }
+    if (status === 400 || status === 403) {
+      return new UlejraAccountError('invalid_email', message);
+    }
+    return new UlejraAccountError('backend_unreachable', message);
   }
 
   /** Signs out here and, best effort, on the server. */

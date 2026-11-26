@@ -37,38 +37,57 @@ describe('Ulejra account routes', () => {
     expect(res.body).toMatchObject({ signedIn: true, balance: { usd: 5 } });
   });
 
-  it('signs in with the email and password from the body', async () => {
-    vi.mocked(ctx.ulejraAccount.login).mockResolvedValue({
+  it('asks the Ulejra server to email a code', async () => {
+    vi.mocked(ctx.ulejraAccount.requestCode).mockResolvedValue({ email: 'sme@example.com', resendAfterSec: 60 });
+    const res = await request(app).post('/integrations/ulejra/code/request').send({ email: 'sme@example.com' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, email: 'sme@example.com', resendAfterSec: 60 });
+    expect(ctx.ulejraAccount.requestCode).toHaveBeenCalledWith('sme@example.com');
+  });
+
+  it('signs in with the emailed code', async () => {
+    vi.mocked(ctx.ulejraAccount.verifyCode).mockResolvedValue({
       signedIn: true,
       backendUrl: 'http://localhost:3080',
       email: 'sme@example.com',
     });
     const res = await request(app)
-      .post('/integrations/ulejra/login')
-      .send({ email: 'sme@example.com', password: 'pw' });
+      .post('/integrations/ulejra/code/verify')
+      .send({ email: 'sme@example.com', code: '123456' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true, signedIn: true });
-    expect(ctx.ulejraAccount.login).toHaveBeenCalledWith('sme@example.com', 'pw');
+    expect(ctx.ulejraAccount.verifyCode).toHaveBeenCalledWith('sme@example.com', '123456', undefined);
   });
 
-  it('answers a wrong password with 400, never 401 (401 means the local API token)', async () => {
-    vi.mocked(ctx.ulejraAccount.login).mockRejectedValue(
-      new UlejraAccountError('invalid_credentials', 'Email or password is incorrect'),
+  it('passes the name on to create an account', async () => {
+    vi.mocked(ctx.ulejraAccount.verifyCode).mockResolvedValue({
+      signedIn: false,
+      nameRequired: true,
+      backendUrl: 'http://localhost:3080',
+    });
+    const res = await request(app)
+      .post('/integrations/ulejra/code/verify')
+      .send({ email: 'new@example.com', code: '123456', name: 'Warung Sari' });
+    expect(res.body).toMatchObject({ ok: true, nameRequired: true });
+    expect(ctx.ulejraAccount.verifyCode).toHaveBeenCalledWith('new@example.com', '123456', 'Warung Sari');
+  });
+
+  it('answers a wrong code with 400, never 401 (401 means the local API token)', async () => {
+    vi.mocked(ctx.ulejraAccount.verifyCode).mockRejectedValue(
+      new UlejraAccountError('invalid_code', 'The code is incorrect or has expired.'),
     );
     const res = await request(app)
-      .post('/integrations/ulejra/login')
-      .send({ email: 'sme@example.com', password: 'wrong' });
+      .post('/integrations/ulejra/code/verify')
+      .send({ email: 'sme@example.com', code: '000000' });
     expect(res.status).toBe(400);
-    expect(res.body).toEqual({ ok: false, code: 'invalid_credentials', error: 'Email or password is incorrect' });
+    expect(res.body).toEqual({ ok: false, code: 'invalid_code', error: 'The code is incorrect or has expired.' });
   });
 
   it('answers 502 when the Ulejra server cannot be reached', async () => {
-    vi.mocked(ctx.ulejraAccount.login).mockRejectedValue(
+    vi.mocked(ctx.ulejraAccount.requestCode).mockRejectedValue(
       new UlejraAccountError('backend_unreachable', 'Could not reach the Ulejra server.'),
     );
-    const res = await request(app)
-      .post('/integrations/ulejra/login')
-      .send({ email: 'sme@example.com', password: 'pw' });
+    const res = await request(app).post('/integrations/ulejra/code/request').send({ email: 'sme@example.com' });
     expect(res.status).toBe(502);
   });
 
