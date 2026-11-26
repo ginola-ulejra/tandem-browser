@@ -18,8 +18,16 @@ function fakePanel() {
   const typing: boolean[] = [];
   let id = 0;
   const panel = {
-    addChatMessage: vi.fn((from: string, text: string, _image?: string, opts: { actorLabel?: string; agentType?: string } = {}) => {
-      const msg: ChatMessage = { id: ++id, from, text, timestamp: id, actorLabel: opts.actorLabel, agentType: opts.agentType };
+    addChatMessage: vi.fn((from: string, text: string, _image?: string, opts: { actorLabel?: string; agentType?: string; sources?: ChatMessage['sources'] } = {}) => {
+      const msg: ChatMessage = {
+        id: ++id,
+        from,
+        text,
+        timestamp: id,
+        actorLabel: opts.actorLabel,
+        agentType: opts.agentType,
+        ...(opts.sources ? { sources: opts.sources } : {}),
+      };
       messages.push(msg);
       for (const listener of listeners) listener(msg);
       return msg;
@@ -339,5 +347,55 @@ describe('UlejraAssistant in the browser', () => {
     await settle();
 
     expect(call).toHaveBeenCalledWith('POST', '/snapshot/click', { ref: '@e7' });
+  });
+});
+
+describe('UlejraAssistant with My Documents', () => {
+  it('shows under the answer the documents it names, from the searches of this answer only', async () => {
+    let pending = [{ documentId: 9, name: 'old.pdf', page: 1 }];
+    const documents: BrowserToolbox = {
+      definitions: [{ type: 'function', function: { name: 'documents_search', description: '', parameters: {} } }],
+      has: (name) => name === 'documents_search',
+      approvalFor: () => null,
+      run: vi.fn(async () => {
+        pending.push(
+          { documentId: 3, name: 'kontrak-sewa.pdf', page: 2 },
+          { documentId: 4, name: 'menu.txt', page: null },
+        );
+        return '[1] kontrak-sewa.pdf, page 2\nUang jaminan dua bulan.';
+      }),
+      takeSources() {
+        const taken = pending;
+        pending = [];
+        return taken;
+      },
+      prepare: vi.fn(async () => undefined),
+    };
+    const search = new Response(
+      JSON.stringify({
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ id: 'd1', type: 'function', function: { name: 'documents_search', arguments: '{"query":"uang jaminan"}' } }],
+        },
+        finishReason: 'tool_calls',
+        added: [],
+      }),
+      { status: 200 },
+    );
+    const authorizedFetch = vi
+      .fn()
+      .mockResolvedValueOnce(search)
+      .mockResolvedValueOnce(reply('Menurut kontrak-sewa.pdf, uang jaminannya dua bulan sewa.'));
+    const { messages, say, settle } = setup(authorizedFetch, {}, vi.fn(), documents);
+
+    say('berapa uang jaminannya?');
+    await settle();
+    await settle();
+
+    const [answer] = fromUlejra(messages);
+    expect(answer.text).toContain('kontrak-sewa.pdf');
+    expect(answer.sources).toEqual([{ documentId: 3, name: 'kontrak-sewa.pdf', page: 2 }]);
+    expect(documents.prepare).toHaveBeenCalledWith('berapa uang jaminannya?');
   });
 });
